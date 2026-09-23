@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cart — HomeShop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header id="site-nav"></header>
+
+<main class="page">
+  <h1 class="page-title">Your cart</h1>
+  <div id="cartBox" class="panel">
+    <p class="empty-note">Loading…</p>
+  </div>
+</main>
+
+<script src="/js/common.js"></script>
+<script>
+  renderNav("cart");
+
+  async function load() {
+    const items = await api(`/cart/${getUserId()}`);
+    const box = document.getElementById("cartBox");
+
+    if (!items.length) {
+      box.innerHTML = `<p class="empty-note">Your cart is empty. <a href="/shop.html">Go shopping →</a></p>`;
+      return;
+    }
+
+    let total = 0;
+    const rows = items.map(i => {
+      const lineTotal = i.unit_price_cents * i.quantity;
+      total += lineTotal;
+      return `
+        <div class="row">
+          <div>
+            <strong>${i.name}</strong>
+            <div style="font-size:0.85rem; color:var(--muted);">Sold by ${i.seller_id} · ${money(i.unit_price_cents)} each · ${i.stock} in stock</div>
+          </div>
+          <div class="qty-control">
+            <input type="number" min="1" max="${i.stock}" value="${i.quantity}"
+                   onchange="updateQty('${i.product_id}', this.value)">
+            <span style="min-width:4.5rem; text-align:right;">${money(lineTotal)}</span>
+            <button class="danger small" onclick="removeItem('${i.product_id}')">Remove</button>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    box.innerHTML = `
+      <div class="row-list">${rows}</div>
+      <div class="row" style="border-top:1px solid var(--ink); margin-top:0.8rem; padding-top:0.8rem;">
+        <strong style="font-family:'Fraunces',serif; font-size:1.1rem;">Total</strong>
+        <strong style="font-family:'Fraunces',serif; font-size:1.1rem;">${money(total)}</strong>
+      </div>
+      <a href="/checkout.html" class="btn primary" style="width:100%; text-align:center; margin-top:1rem;">
+        Proceed to checkout
+      </a>
+    `;
+  }
+
+  async function updateQty(productId, qty) {
+    try {
+      await api(`/cart/${getUserId()}/item/${productId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ quantity: parseInt(qty, 10) }),
+      });
+      load();
+      renderNav("cart");
+    } catch (e) {
+      showToast(e.message);
+      load();
+    }
+  }
+
+  async function removeItem(productId) {
+    await api(`/cart/${getUserId()}/item/${productId}`, { method: "DELETE" });
+    showToast("Removed from cart");
+    load();
+    renderNav("cart");
+  }
+
+  load();
+</script>
+</body>
+</html>

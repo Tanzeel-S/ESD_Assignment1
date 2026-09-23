@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Seller dashboard — HomeShop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header id="site-nav"></header>
+
+<main class="page">
+  <h1 class="page-title">My seller dashboard</h1>
+
+  <div id="stats" class="stat-row"></div>
+
+  <div class="panel">
+    <h2 style="font-size:1.1rem; margin-bottom:1rem;">Products</h2>
+    <div id="productTable"></div>
+
+    <div class="section-gap">
+      <h3 style="font-size:0.95rem; font-weight:500; color:var(--muted); margin-bottom:0.6rem;">Add a product</h3>
+      <div class="field-row">
+        <input id="newName" placeholder="Name">
+        <input id="newPrice" placeholder="Price ($)" style="max-width:8rem;">
+        <input id="newStock" placeholder="Starting stock" style="max-width:8rem;">
+      </div>
+      <div class="field-row">
+        <input id="newDesc" placeholder="Description (optional)">
+      </div>
+      <button class="ghost" onclick="createProduct()">Add product</button>
+    </div>
+  </div>
+
+  <div class="panel section-gap">
+    <h2 style="font-size:1.1rem; margin-bottom:1rem;">Orders for my products</h2>
+    <div id="orderTable"></div>
+  </div>
+</main>
+
+<script src="/js/common.js"></script>
+<script>
+  renderNav("admin");
+
+  async function loadStats(orders) {
+    const revenue = orders
+      .filter(o => o.status === "completed")
+      .reduce((sum, o) => sum + o.total_cents, 0);
+    const pending = orders.filter(o => ["pending", "processing"].includes(o.status)).length;
+    const failed = orders.filter(o => o.status === "failed").length;
+
+    document.getElementById("stats").innerHTML = `
+      <div class="stat-box"><div class="value">${money(revenue)}</div><div class="label">Revenue (completed orders)</div></div>
+      <div class="stat-box"><div class="value">${orders.length}</div><div class="label">Total orders</div></div>
+      <div class="stat-box"><div class="value">${pending}</div><div class="label">In progress</div></div>
+      <div class="stat-box"><div class="value">${failed}</div><div class="label">Failed payments</div></div>
+    `;
+  }
+
+  async function loadProducts() {
+    const products = await api("/products/mine");
+    const el = document.getElementById("productTable");
+    if (!products.length) {
+      el.innerHTML = `<p class="empty-note">No products yet — add one below.</p>`;
+      return;
+    }
+    el.innerHTML = `
+      <table class="data-table">
+        <thead><tr><th>Name</th><th>Price</th><th>Stock</th><th></th></tr></thead>
+        <tbody>
+          ${products.map(p => `
+            <tr>
+              <td>${p.name}</td>
+              <td>${money(p.price_cents)}</td>
+              <td>${p.stock}</td>
+              <td>
+                <div style="display:flex; gap:0.4rem; align-items:center;">
+                  <input type="number" min="1" placeholder="Qty" style="width:4.5rem; padding:0.3rem; border:1px solid var(--border); border-radius:3px;" id="restock-${p.id}">
+                  <button class="ghost small" onclick="restock('${p.id}')">Restock</button>
+                </div>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+  }
+
+  async function restock(productId) {
+    const input = document.getElementById(`restock-${productId}`);
+    const qty = parseInt(input.value, 10);
+    if (!qty || qty <= 0) {
+      showToast("Enter a quantity to add");
+      return;
+    }
+    try {
+      await api(`/products/${productId}/restock?quantity=${qty}`, { method: "POST" });
+      showToast("Restocked");
+      loadProducts();
+    } catch (e) {
+      showToast(e.message);
+    }
+  }
+
+  async function createProduct() {
+    const name = document.getElementById("newName").value.trim();
+    const price = parseFloat(document.getElementById("newPrice").value);
+    const stock = parseInt(document.getElementById("newStock").value, 10);
+    const description = document.getElementById("newDesc").value.trim();
+
+    if (!name || isNaN(price) || isNaN(stock)) {
+      showToast("Fill in name, price, and stock");
+      return;
+    }
+
+    try {
+      await api("/products", {
+        method: "POST",
+        body: JSON.stringify({ name, description, price_cents: Math.round(price * 100), stock }),
+      });
+      document.getElementById("newName").value = "";
+      document.getElementById("newPrice").value = "";
+      document.getElementById("newStock").value = "";
+      document.getElementById("newDesc").value = "";
+      showToast("Product added");
+      loadProducts();
+    } catch (e) {
+      showToast(e.message);
+    }
+  }
+
+  async function loadOrders() {
+    const orders = await api("/seller/orders");
+    loadStats(orders);
+    const el = document.getElementById("orderTable");
+    if (!orders.length) {
+      el.innerHTML = `<p class="empty-note">No orders yet.</p>`;
+      return;
+    }
+    el.innerHTML = `
+      <table class="data-table">
+        <thead><tr><th>Order</th><th>Placed</th><th>Total</th><th>Status</th></tr></thead>
+        <tbody>
+          ${orders.map(o => `
+            <tr>
+              <td><a href="/order.html?id=${o.id}">${o.id.slice(0,8)}…</a></td>
+              <td>${new Date(o.created_at).toLocaleString()}</td>
+              <td>${money(o.total_cents)}</td>
+              <td><span class="status ${o.status}">${o.status}</span></td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+  }
+
+  loadProducts();
+  loadOrders();
+</script>
+</body>
+</html>

@@ -1,0 +1,132 @@
+{
+  "title": "HomeShop Overview",
+  "uid": "homeshop-overview",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Orders placed (rate, per minute)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "rate(orders_placed_total[5m]) * 60",
+          "legendFormat": "orders placed / min"
+        }
+      ],
+      "description": "Uses rate() rather than the raw counter because orders_placed_total only ever goes up; the rate shows how fast it's climbing right now."
+    },
+    {
+      "id": 2,
+      "title": "Order outcomes (completed vs failed vs cancelled)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        { "expr": "rate(orders_completed_total[5m]) * 60", "legendFormat": "completed / min" },
+        { "expr": "rate(orders_failed_total[5m]) * 60", "legendFormat": "failed / min" },
+        { "expr": "rate(orders_cancelled_total[5m]) * 60", "legendFormat": "cancelled / min" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Orders currently in queue (pending + processing)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        { "expr": "orders_queue_depth", "legendFormat": "queue depth" }
+      ],
+      "description": "A Gauge, not a Counter - it goes up when orders arrive and down as the worker finishes them."
+    },
+    {
+      "id": 4,
+      "title": "Inventory stock by product",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        { "expr": "inventory_stock", "legendFormat": "{{seller_id}} — {{product_name}}" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Payment processing latency (p50 / p95 / p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(payment_processing_seconds_bucket[5m])) by (le))", "legendFormat": "p50" },
+        { "expr": "histogram_quantile(0.95, sum(rate(payment_processing_seconds_bucket[5m])) by (le))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, sum(rate(payment_processing_seconds_bucket[5m])) by (le))", "legendFormat": "p99" }
+      ],
+      "description": "Computed from the Histogram's bucket data via histogram_quantile(). This is the metric we will deliberately degrade in the Part E anomaly experiment."
+    },
+    {
+      "id": 6,
+      "title": "HTTP request latency (p95 by route)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, path))", "legendFormat": "{{path}}" }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Average order fulfillment time (Summary)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "targets": [
+        {
+          "expr": "rate(order_fulfillment_seconds_sum[5m]) / rate(order_fulfillment_seconds_count[5m])",
+          "legendFormat": "avg fulfillment time (s)"
+        }
+      ],
+      "description": "Manual sum/count average since Python Summaries don't expose percentiles."
+    },
+    {
+      "id": 8,
+      "title": "Revenue collected (running total, $)",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "targets": [
+        { "expr": "revenue_cents_total / 100" }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Host CPU usage % (homeshop-dev-host)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "targets": [
+        {
+          "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\", instance=\"homeshop-dev-host\"}[5m])) * 100)",
+          "legendFormat": "CPU %"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Host memory used % (homeshop-dev-host)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "targets": [
+        {
+          "expr": "100 * (1 - (node_memory_MemAvailable_bytes{instance=\"homeshop-dev-host\"} / node_memory_MemTotal_bytes{instance=\"homeshop-dev-host\"}))",
+          "legendFormat": "Memory %"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Part E.2: High Cardinality Metric Series Count (count(cardinality_test_total))",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 40 },
+      "targets": [
+        { "expr": "count(cardinality_test_total)", "legendFormat": "Time Series Count" }
+      ],
+      "description": "Demonstrates high cardinality time-series explosion when unique request IDs are added as metric labels."
+    }
+  ]
+}
+

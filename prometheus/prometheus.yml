@@ -1,0 +1,24 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: "homeshop-api"
+    static_configs:
+      - targets: ["api:8000"]
+
+  - job_name: "homeshop-worker"
+    static_configs:
+      - targets: ["worker:8001"]
+
+  - job_name: "node-exporter"
+    static_configs:
+      # 'instance' relabeled below to a human-readable machine name,
+      # per the assignment's "name the machine being measured" requirement.
+      - targets: ["node-exporter:9100"]
+        labels:
+          instance: "homeshop-dev-host"
+
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]

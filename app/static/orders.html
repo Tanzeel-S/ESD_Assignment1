@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My orders — HomeShop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header id="site-nav"></header>
+
+<main class="page">
+  <h1 class="page-title">My orders</h1>
+  <div id="list" class="row-list">
+    <p class="empty-note">Loading…</p>
+  </div>
+</main>
+
+<script src="/js/common.js"></script>
+<script>
+  renderNav("orders");
+
+  async function load() {
+    const orders = await api(`/orders?user_id=${encodeURIComponent(getUserId())}`);
+    const el = document.getElementById("list");
+
+    if (!orders.length) {
+      el.innerHTML = `<p class="empty-note">No orders yet. <a href="/shop.html">Start shopping →</a></p>`;
+      return;
+    }
+
+    el.innerHTML = orders.map(o => `
+      <a class="row" href="/order.html?id=${o.id}" style="text-decoration:none; color:inherit;">
+        <div>
+          <div>${new Date(o.created_at).toLocaleString()}</div>
+          <div style="font-size:0.8rem; color:var(--muted);">Order ${o.id.slice(0,8)}…</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:1rem;">
+          <span>${money(o.total_cents)}</span>
+          <span class="status ${o.status}">${o.status}</span>
+        </div>
+      </a>
+    `).join("");
+  }
+
+  load();
+</script>
+</body>
+</html>

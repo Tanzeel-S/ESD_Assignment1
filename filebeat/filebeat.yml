@@ -1,0 +1,48 @@
+filebeat.inputs:
+  - type: filestream
+    id: homeshop-containers
+    paths:
+      - /var/lib/docker/containers/*/*.log
+    parsers:
+      # Decode Docker's json-file envelope first. The resulting `message`
+      # contains the JSON written by app/observability_logging.py.
+      - container:
+          stream: all
+          format: docker
+    processors:
+      - add_docker_metadata:
+          host: unix:///var/run/docker.sock
+      - decode_json_fields:
+          fields: ["message"]
+          target: ""
+          overwrite_keys: true
+          add_error_key: true
+      - rename:
+          fields:
+            - from: "service"
+              to: "service_name"
+          ignore_missing: true
+      - drop_event:
+          when:
+            not:
+              or:
+                - equals:
+                    service_name: "homeshop-api"
+                - equals:
+                    service_name: "homeshop-worker"
+      - add_fields:
+          target: ""
+          fields:
+            pipeline: "filebeat"
+
+
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+  index: "homeshop-logs-%{+yyyy.MM.dd}"
+
+setup.ilm.enabled: false
+setup.template.enabled: true
+setup.template.name: "homeshop-logs"
+setup.template.pattern: "homeshop-logs-*"
+
+logging.to_files: false

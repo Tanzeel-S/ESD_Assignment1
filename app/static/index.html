@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HomeShop — handmade goods from home-based sellers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header id="site-nav"></header>
+
+<section class="hero">
+  <h1>Small-batch goods, straight from someone's home.</h1>
+  <p>HomeShop is a lightweight storefront built for home-based sellers — candles, bakes, crafts — who want to sell online without a heavy platform.</p>
+  <a href="/shop.html" class="btn primary">Browse the shop</a>
+</section>
+
+<main class="page">
+  <h2 class="page-title" style="font-size:1.3rem;">Featured products</h2>
+  <div id="featured" class="product-grid">
+    <p class="empty-note">Loading…</p>
+  </div>
+</main>
+
+<script src="/js/common.js"></script>
+<script>
+  renderNav("home");
+
+  async function loadFeatured() {
+    const products = await api("/products");
+    const el = document.getElementById("featured");
+    if (!products.length) {
+      el.innerHTML = `<p class="empty-note">No products yet — add some from the <a href="/admin.html">seller page</a>.</p>`;
+      return;
+    }
+    el.innerHTML = products.slice(0, 3).map(p => `
+      <a href="/product.html?id=${p.id}" class="product-card" style="text-decoration:none; color:inherit;">
+        <div class="thumb">${p.name.slice(0,1).toUpperCase()}</div>
+        <h3>${p.name}</h3>
+        <div class="price">${money(p.price_cents)}</div>
+        <div class="stock">${p.stock} in stock</div>
+      </a>
+    `).join("");
+  }
+  loadFeatured();
+</script>
+</body>
+</html>

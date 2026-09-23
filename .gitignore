@@ -1,0 +1,115 @@
+# =============================================================================
+# Python
+# =============================================================================
+
+# Compiled bytecode (never commit these — they're machine-specific)
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.env/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+.eggs/
+
+# Test caches
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# =============================================================================
+# Environment & Secrets
+# =============================================================================
+
+# Local .env files — store real secrets here, NEVER commit them.
+# Use docker-compose.override.yml for local overrides instead.
+.env
+.env.*
+*.env
+
+# If you ever create a docker-compose override for local secrets:
+docker-compose.override.yml
+
+# =============================================================================
+# Docker
+# =============================================================================
+
+# Docker runtime artefacts — not source files
+.dockerignore.bak
+
+# =============================================================================
+# Databases & Data Volumes
+# =============================================================================
+
+# Any local SQLite files that might be created during dev/testing
+*.db
+*.sqlite3
+*.sqlite
+
+# Local data dumps
+*.sql.gz
+*.dump
+
+# =============================================================================
+# IDE & Editor Files
+# =============================================================================
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# JetBrains (PyCharm, IntelliJ)
+.idea/
+*.iml
+
+# macOS finder metadata (CRITICAL for Mac users pushing to GitHub)
+.DS_Store
+**/.DS_Store
+__MACOSX/
+
+# Vim / Emacs swap files
+*.swp
+*.swo
+*~
+
+# =============================================================================
+# Logs & Temporary Files
+# =============================================================================
+
+# Application log files (real logs go to Elasticsearch, not the repo)
+*.log
+logs/
+
+# Temporary fault injection file used by Part E.1 anomaly experiment
+# This is a runtime artefact written by docker exec, not a source file.
+/tmp/fault_config.json
+
+# =============================================================================
+# Node Exporter / Prometheus local TSDB data (if ever mounted locally)
+# =============================================================================
+
+prometheus_data/
+grafana_data/
+
+# =============================================================================
+# What IS intentionally committed (override any broad rules above)
+# =============================================================================
+
+# Configuration YAMLs are source files — they should be tracked.
+!prometheus/prometheus.yml
+!grafana/provisioning/**/*.yml
+!grafana/provisioning/**/*.json
+!filebeat/filebeat.yml

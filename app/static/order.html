@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Order status — HomeShop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header id="site-nav"></header>
+
+<main class="page" style="max-width:560px;">
+  <h1 class="page-title">Order status</h1>
+  <div id="orderBox" class="panel">
+    <p class="empty-note">Loading…</p>
+  </div>
+</main>
+
+<script src="/js/common.js"></script>
+<script>
+  renderNav("orders");
+
+  const orderId = new URLSearchParams(location.search).get("id");
+  let pollTimer = null;
+
+  function render(order) {
+    const canCancel = order.user_id === getUserId() && ["pending", "processing"].includes(order.status);
+    const box = document.getElementById("orderBox");
+    box.innerHTML = `
+      <div style="font-size:0.85rem; color:var(--muted);">Order ${order.id}</div>
+      <div style="margin:0.6rem 0;"><span class="status ${order.status}">${order.status}</span></div>
+      <div style="font-family:'Fraunces',serif; font-size:1.3rem; margin-bottom:0.6rem;">${money(order.total_cents)}</div>
+      ${order.failure_reason ? `<div style="color:var(--danger); font-size:0.88rem; margin-bottom:0.8rem;">${order.failure_reason}</div>` : ""}
+      ${order.status === "pending" || order.status === "processing"
+        ? `<p style="font-size:0.85rem; color:var(--muted);">Our fulfillment worker is processing this order now — this page updates automatically.</p>`
+        : ""}
+      ${canCancel ? `<button class="danger" onclick="cancelOrder()">Cancel order</button>` : ""}
+      <div style="margin-top:1.5rem;"><a href="/orders.html">← View all my orders</a></div>
+    `;
+  }
+
+  async function poll() {
+    if (!orderId) {
+      document.getElementById("orderBox").innerHTML = `<p class="empty-note">No order specified.</p>`;
+      return;
+    }
+    try {
+      const order = await api(`/orders/${orderId}`);
+      render(order);
+      if (["completed", "failed", "cancelled"].includes(order.status)) {
+        clearInterval(pollTimer);
+      }
+    } catch (e) {
+      document.getElementById("orderBox").innerHTML = `<p class="empty-note">Order not found.</p>`;
+      clearInterval(pollTimer);
+    }
+  }
+
+  async function cancelOrder() {
+    try {
+      await api(`/orders/${orderId}/cancel`, { method: "POST" });
+      showToast("Order cancelled");
+      poll();
+    } catch (e) {
+      showToast(e.message);
+    }
+  }
+
+  poll();
+  pollTimer = setInterval(poll, 1500);
+</script>
+</body>
+</html>

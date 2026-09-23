@@ -1,0 +1,168 @@
+services:
+  db:
+    container_name: homeshop-db
+    image: postgres:16
+    environment:
+      POSTGRES_USER: homeshop
+      POSTGRES_PASSWORD: homeshop
+      POSTGRES_DB: homeshop
+    ports:
+      - "5432:5432"
+    volumes:
+      - homeshop_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U homeshop"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    container_name: homeshop-api
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://homeshop:homeshop@db:5432/homeshop
+      SERVICE_NAME: homeshop-api
+    volumes:
+      - ./app:/code/app
+    depends_on:
+      db:
+        condition: service_healthy
+
+  worker:
+    container_name: homeshop-worker
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    ports:
+      - "8001:8001"   # /metrics for Prometheus to scrape
+    environment:
+      DATABASE_URL: postgresql://homeshop:homeshop@db:5432/homeshop
+      SERVICE_NAME: homeshop-worker
+      WORKER_POLL_INTERVAL: "1.0"
+      WORKER_METRICS_PORT: "8001"
+      PAYMENT_BASE_LATENCY_MS: "80"
+      PAYMENT_JITTER_MS: "40"
+      PAYMENT_FAILURE_RATE: "0.03"
+    volumes:
+      - ./worker:/app/worker
+      - ./app:/app/app
+      - homeshop_shared_tmp:/tmp
+    depends_on:
+      db:
+        condition: service_healthy
+
+  simulator:
+    container_name: homeshop-simulator
+    build:
+      context: .
+      dockerfile: Dockerfile.simulator
+    environment:
+      API_URL: http://api:8000
+      SIMULATOR_INTERVAL: "1.0"
+    depends_on:
+      - api
+
+  node-exporter:
+    container_name: homeshop-node-exporter
+    image: prom/node-exporter:v1.8.2
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+
+  prometheus:
+    container_name: homeshop-prometheus
+    image: prom/prometheus:v2.55.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - homeshop_prom_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    depends_on:
+      - api
+      - worker
+      - node-exporter
+
+  grafana:
+    container_name: homeshop-grafana
+    image: grafana/grafana:11.2.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - homeshop_grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+  elasticsearch:
+    container_name: homeshop-elasticsearch
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    ports:
+      - "9200:9200"
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      xpack.security.enrollment.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    volumes:
+      - homeshop_elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=1s'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  kibana:
+    container_name: homeshop-kibana
+    image: docker.elastic.co/kibana/kibana:8.15.3
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      XPACK_SECURITY_ENABLED: "false"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  filebeat:
+    container_name: homeshop-filebeat
+    image: docker.elastic.co/beats/filebeat:8.15.3
+    user: root
+    command: ["filebeat", "-e", "--strict.perms=false"]
+    volumes:
+      - ./filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      # Filebeat reads the Docker json-file log envelopes, then decodes the
+      # JSON emitted by the API and worker into Elasticsearch fields.
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - homeshop_filebeat_data:/usr/share/filebeat/data
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+volumes:
+  homeshop_pgdata:
+  homeshop_prom_data:
+  homeshop_grafana_data:
+  homeshop_elasticsearch_data:
+  homeshop_filebeat_data:
+  homeshop_shared_tmp:
+

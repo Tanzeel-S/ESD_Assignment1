@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Checkout — HomeShop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header id="site-nav"></header>
+
+<main class="page" style="max-width:640px;">
+  <h1 class="page-title">Checkout</h1>
+  <div id="summary" class="panel">
+    <p class="empty-note">Loading…</p>
+  </div>
+</main>
+
+<script src="/js/common.js"></script>
+<script>
+  renderNav("cart");
+
+  async function load() {
+    const items = await api(`/cart/${getUserId()}`);
+    const box = document.getElementById("summary");
+
+    if (!items.length) {
+      box.innerHTML = `<p class="empty-note">Your cart is empty. <a href="/shop.html">Go shopping →</a></p>`;
+      return;
+    }
+
+    let total = 0;
+    const rows = items.map(i => {
+      const lineTotal = i.unit_price_cents * i.quantity;
+      total += lineTotal;
+      return `<div class="row"><span>${i.name} × ${i.quantity}</span><span>${money(lineTotal)}</span></div>`;
+    }).join("");
+
+    box.innerHTML = `
+      <div class="row-list">${rows}</div>
+      <div class="row" style="border-top:1px solid var(--ink); margin-top:0.8rem; padding-top:0.8rem;">
+        <strong style="font-family:'Fraunces',serif; font-size:1.15rem;">Total</strong>
+        <strong style="font-family:'Fraunces',serif; font-size:1.15rem;">${money(total)}</strong>
+      </div>
+      <p style="font-size:0.85rem; color:var(--muted); margin-top:1rem;">
+        Payment is simulated for this demo — placing the order will hand it to our
+        fulfillment worker, which "charges" a fake payment gateway in the background.
+      </p>
+      <button class="primary" id="placeOrderBtn" style="width:100%; margin-top:0.5rem;" onclick="placeOrder()">
+        Place order — ${money(total)}
+      </button>
+    `;
+  }
+
+  async function placeOrder() {
+    const btn = document.getElementById("placeOrderBtn");
+    btn.disabled = true;
+    btn.textContent = "Placing order…";
+    try {
+      const order = await api(`/checkout/${getUserId()}`, { method: "POST" });
+      location.href = `/order.html?id=${order.id}`;
+    } catch (e) {
+      showToast(e.message);
+      btn.disabled = false;
+      load();
+    }
+  }
+
+  load();
+</script>
+</body>
+</html>
