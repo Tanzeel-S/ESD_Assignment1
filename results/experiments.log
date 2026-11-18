@@ -1,0 +1,51 @@
+2026-11-18T04:21:04Z === experiments: rate=30/s per interface, duration=60s, B delay=0.2s
+2026-11-18T04:21:15Z simulator stopped (keeps test traffic clean)
+2026-11-18T04:21:15Z envoy config -> envoy-a-only.yaml
+2026-11-18T04:21:25Z run a-only start
+a-only: 2026-11-18T04:21:26+00:00 -> 2026-11-18T04:22:26+00:00
+  http target=30.0/s actual=30.02/s sent=1800 ok=1800 fail=0 (0.0%) p50=4.7ms p95=11.4ms shares={'A': 100.0} errors={}
+  grpc target=30.0/s actual=30.01/s sent=1800 ok=1800 fail=0 (0.0%) p50=4.0ms p95=10.1ms shares={'A': 100.0} errors={}
+2026-11-18T04:22:27Z run a-only end
+2026-11-18T04:22:27Z gap 75s
+2026-11-18T04:23:42Z envoy config -> envoy-round-robin.yaml
+2026-11-18T04:23:51Z run round-robin start
+round-robin: 2026-11-18T04:23:52+00:00 -> 2026-11-18T04:24:53+00:00
+  http target=30.0/s actual=30.02/s sent=1800 ok=1800 fail=0 (0.0%) p50=4.9ms p95=9.6ms shares={'A': 33.4, 'B': 33.3, 'C': 33.3} errors={}
+  grpc target=30.0/s actual=30.02/s sent=1800 ok=1800 fail=0 (0.0%) p50=3.8ms p95=8.0ms shares={'A': 33.3, 'B': 33.3, 'C': 33.3} errors={}
+2026-11-18T04:24:53Z run round-robin end
+2026-11-18T04:24:53Z gap 75s
+2026-11-18T04:26:08Z envoy config -> envoy-weighted.yaml
+2026-11-18T04:26:18Z run weighted start
+weighted: 2026-11-18T04:26:19+00:00 -> 2026-11-18T04:27:20+00:00
+  http target=30.0/s actual=30.02/s sent=1800 ok=1800 fail=0 (0.0%) p50=4.9ms p95=12.4ms shares={'A': 50.1, 'B': 25.0, 'C': 24.9} errors={}
+  grpc target=30.0/s actual=30.02/s sent=1800 ok=1800 fail=0 (0.0%) p50=3.9ms p95=10.0ms shares={'A': 50.0, 'B': 25.0, 'C': 25.0} errors={}
+2026-11-18T04:27:20Z run weighted end
+2026-11-18T04:27:20Z gap 75s
+2026-11-18T04:28:35Z envoy config -> envoy-round-robin.yaml
+2026-11-18T04:28:45Z replica B delay = 0.2s
+2026-11-18T04:28:45Z run rr-delay start
+rr-delay: 2026-11-18T04:28:46+00:00 -> 2026-11-18T04:29:47+00:00
+  http target=30.0/s actual=30.01/s sent=1800 ok=1800 fail=0 (0.0%) p50=8.9ms p95=217.3ms shares={'A': 33.4, 'B': 33.3, 'C': 33.3} errors={}
+  grpc target=30.0/s actual=30.01/s sent=1800 ok=1800 fail=0 (0.0%) p50=7.2ms p95=213.4ms shares={'A': 33.3, 'B': 33.3, 'C': 33.3} errors={}
+2026-11-18T04:29:47Z run rr-delay end
+2026-11-18T04:29:48Z replica B delay = 0s
+2026-11-18T04:29:48Z gap 75s
+2026-11-18T04:31:03Z envoy config -> envoy-least-request.yaml
+2026-11-18T04:31:13Z replica B delay = 0.2s
+2026-11-18T04:31:13Z run lr-delay start
+lr-delay: 2026-11-18T04:31:14+00:00 -> 2026-11-18T04:32:15+00:00
+  http target=30.0/s actual=30.01/s sent=1800 ok=1800 fail=0 (0.0%) p50=5.5ms p95=207.7ms shares={'A': 41.4, 'B': 15.9, 'C': 42.6} errors={}
+  grpc target=30.0/s actual=30.02/s sent=1800 ok=1800 fail=0 (0.0%) p50=4.4ms p95=205.9ms shares={'A': 41.7, 'B': 16.1, 'C': 42.2} errors={}
+2026-11-18T04:32:15Z run lr-delay end
+2026-11-18T04:32:16Z replica B delay = 0s
+2026-11-18T04:32:16Z gap 75s
+2026-11-18T04:33:31Z envoy config -> envoy-round-robin.yaml
+2026-11-18T04:33:40Z run failure start
+2026-11-18T04:34:05Z STOP B  epoch=1794976445
+2026-11-18T04:34:37Z START B epoch=1794976477
+failure: 2026-11-18T04:33:41+00:00 -> 2026-11-18T04:35:11+00:00
+  http target=30.0/s actual=30.01/s sent=2700 ok=2660 fail=40 (1.48%) p50=4.8ms p95=13.4ms shares={'A': 39.9, 'B': 20.2, 'C': 39.9} errors={'503': 40}
+  grpc target=30.0/s actual=30.01/s sent=2700 ok=2662 fail=38 (1.41%) p50=3.8ms p95=10.9ms shares={'A': 39.9, 'B': 20.3, 'C': 39.9} errors={'UNAVAILABLE': 38}
+2026-11-18T04:35:12Z run failure end
+2026-11-18T04:35:17Z envoy config -> envoy-round-robin.yaml
+2026-11-18T04:35:27Z simulator restarted; envoy back to round robin

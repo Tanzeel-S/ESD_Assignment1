@@ -1,13 +1,9 @@
 """Prometheus metrics for the HomeShop gRPC server process."""
 
-from prometheus_client import REGISTRY, Counter, Gauge, Histogram, start_http_server
+from prometheus_client import Counter, Gauge, Histogram
 
-from app.metrics import INVENTORY_STOCK
-
-# Shared checkout code also updates the inventory Gauge, but a second copy from
-# this process would go stale and duplicate the API's series. Counters (orders
-# placed / rejected) are kept and summed across jobs in Grafana instead.
-REGISTRY.unregister(INVENTORY_STOCK)
+# Assignment 3: the gRPC server runs inside each replica's API process, so these
+# metrics are exported on that replica's HTTP /metrics endpoint.
 
 GRPC_RPC_CALLS_TOTAL = Counter(
     "homeshop_grpc_rpc_calls_total",
@@ -27,8 +23,3 @@ GRPC_RPC_IN_FLIGHT = Gauge(
     "Number of gRPC calls currently being handled by the server.",
     ("rpc_method",),
 )
-
-
-def start_metrics_server(port: int = 8002) -> None:
-    """Expose this process's Prometheus registry on a separate HTTP port."""
-    start_http_server(port)

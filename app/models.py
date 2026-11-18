@@ -76,3 +76,22 @@ class OrderItem(Base):
 
     order = relationship("Order", back_populates="items")
     product = relationship("Product")
+
+
+class IdempotencyRecord(Base):
+    """Shared by all replicas, so a repeated key is recognised wherever it lands."""
+    __tablename__ = "idempotency_records"
+
+    key = Column(String, primary_key=True)          # "<user_id>:<Idempotency-Key>"
+    status = Column(String, nullable=False)         # in_progress | completed
+    order_id = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class RateLimitEvent(Base):
+    """One row per accepted checkout call; the sliding window is counted across replicas."""
+    __tablename__ = "rate_limit_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    bucket = Column(String, nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False, index=True)

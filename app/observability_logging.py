@@ -24,6 +24,7 @@ class JsonFormatter(logging.Formatter):
         event: dict[str, Any] = {
             "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "service": os.getenv("SERVICE_NAME", "homeshop"),
+            "replica": os.getenv("REPLICA_ID", "-"),
             "severity": record.levelname,
             "message": record.getMessage(),
         }

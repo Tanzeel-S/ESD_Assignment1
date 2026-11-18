@@ -21,7 +21,18 @@ HTTP_REQUEST_DURATION_SECONDS = Histogram(
     "http_request_duration_seconds",
     "HTTP request latency in seconds",
     ["method", "path"],
-    buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5),
+    buckets=(0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5),
+)
+
+HTTP_REQUESTS_IN_FLIGHT = Gauge(
+    "http_requests_in_flight",
+    "HTTP application requests currently being handled (excludes /metrics and /healthz)",
+)
+
+REPLICA_INFO = Gauge(
+    "homeshop_replica_info",
+    "Always 1; the replica label identifies which replica (A, B, C) exported these metrics",
+    ["replica"],
 )
 
 # ---- Business metrics ----

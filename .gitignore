@@ -113,3 +113,6 @@ grafana_data/
 !grafana/provisioning/**/*.yml
 !grafana/provisioning/**/*.json
 !filebeat/filebeat.yml
+
+# Assignment 3 experiment evidence (timings) is intentionally committed
+!results/*.log

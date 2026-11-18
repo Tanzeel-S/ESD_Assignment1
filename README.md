@@ -2,20 +2,21 @@
 
 A minimal e-commerce backend for home-based / small businesses (e.g. someone
 selling candles, baked goods, or crafts from home). Built for the
-Observability assignment (A1) and extended with HTTP API improvements, gRPC and metrics (A2). Assignment 1 report: `REPORT.md`; Assignment 2 report: `ASSIGNMENT2_REPORT.md`.
+Observability assignment (A1) extended with HTTP API improvements, gRPC and metrics (A2), then load-balanced behind Envoy (A3). Reports: `REPORT.md` (A1), `ASSIGNMENT2_REPORT.md` (A2), `ASSIGNMENT3_REPORT.md` (A3).
 
-## Architecture (so far)
+## Architecture
 
-- **api** — FastAPI service: browse products, manage cart, checkout, check order status. Exposes `/metrics`. Also serves a simple storefront UI at `/` (`app/static/index.html`).
+- **envoy** — the only entry point. HTTP on `localhost:8000`, gRPC on `localhost:50051`, admin and metrics on `localhost:9901`. It balances requests across the replicas; the policy file is chosen by `ENVOY_CONFIG`.
+- **app** (×3: `homeshop-app-1/2/3` = replicas **A/B/C**) — the FastAPI HTTP API (storefront UI, `/metrics`, `/healthz`) and the gRPC service (`Checkout`, `GetProduct`, gRPC health) in one process per replica. The replicas are not published to the host.
 - **worker** — polls the database for pending orders and "processes" them
   by calling a simulated payment gateway (configurable latency/failure rate). Exposes `/metrics` on port 8001.
-- **grpc** — separate gRPC service exposing checkout on port 50051; it uses the same checkout business rules and PostgreSQL database as the HTTP API.
-- **db** — Postgres, shared by api and worker
+- **db** — Postgres, shared by all replicas and the worker. It also holds the shared idempotency records and rate-limit counters.
+- **tools** (profile `tools`) — a client container for tests, the load generator and the A2 scripts: `docker compose run --rm tools python scripts/...`
 - **node-exporter** — exposes host CPU/memory/disk/network stats
-- **prometheus** — scrapes api, worker, the gRPC process metrics endpoint, and node-exporter every 5s
-- **grafana** — pre-provisioned with a Prometheus datasource and a starter dashboard ("HomeShop Overview")
-- **filebeat** — reads Docker's JSON log files, decodes HomeShop's JSON events, and sends them to Elasticsearch
-- **elasticsearch** — indexes searchable API and worker logs in `homeshop-logs-*`
+- **prometheus** — scrapes each replica directly (labelled `replica=A/B/C`), Envoy, the worker and node-exporter every 5 s
+- **grafana** — dashboards "HomeShop Overview" (A1/A2) and "HomeShop Load Balancing (A3)"
+- **filebeat** — reads Docker's JSON log files and ships the app, worker and Envoy access-log events to Elasticsearch
+- **elasticsearch** — indexes searchable logs in `homeshop-logs-*`
 - **kibana** — explores and searches the stored logs
 
 ## Requirements
@@ -31,9 +32,8 @@ docker compose up --build
 The API will be available at http://localhost:8000. Interactive docs at
 http://localhost:8000/docs.
 
-The gRPC checkout service listens on `localhost:50051`. See
-`ASSIGNMENT2_REPORT.md` for the RPC client, protocol generation command, and
-integration test instructions.
+Requests go through Envoy to three replicas. gRPC is on `localhost:50051`.
+See the Assignment 2 and 3 sections below.
 
 ## Try it — via the storefront UI
 
@@ -120,17 +120,65 @@ python3 scripts/test_part_a.py            # valid / invalid / repeated / rate li
 python3 scripts/part_a_http_caller.py     # timeout, retry + backoff, circuit breaker
 
 # Part B: gRPC checkout
-docker compose exec grpc python -m grpc_service.client alice --deadline 3   # direct gRPC call (user ID as argument)
-docker compose exec grpc python scripts/test_part_b.py                     # success + failure over HTTP and gRPC
+docker compose run --rm tools python -m grpc_service.client alice --deadline 3   # direct gRPC call (user ID as argument)
+docker compose run --rm tools python scripts/test_part_b.py                     # success + failure over HTTP and gRPC
 
 # Part C: populate the gRPC/HTTP checkout panels in Grafana
-docker compose exec grpc python scripts/run_grpc_metrics_demo.py --count 4
+docker compose run --rm tools python scripts/run_grpc_metrics_demo.py --count 4
 ```
 
 - OpenAPI spec: `openapi.json` (regenerate with `curl -s localhost:8000/openapi.json | python3 -m json.tool > openapi.json`). Swagger UI: http://localhost:8000/docs
 - Regenerate the gRPC code after editing `grpc_service/checkout.proto`:
   `python -m pip install -r grpc-requirements.txt && python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. grpc_service/checkout.proto`
-- gRPC listens on `localhost:50051`; its Prometheus metrics are on `localhost:8002/metrics` (job `homeshop-grpc`). The checkout comparison panels are at the bottom of Grafana's **HomeShop Overview** dashboard.
+- gRPC listens on `localhost:50051` (through Envoy); each replica's gRPC metrics are on its own `/metrics` (job `homeshop-app`). The checkout comparison panels are at the bottom of Grafana's **HomeShop Overview** dashboard.
+- The A2 reliability caller injects faults into one replica's memory, so point it at a single replica: `docker compose run --rm -e API_URL=http://homeshop-app-1:8000 tools python scripts/part_a_http_caller.py`
+
+## Assignment 3: load balancing with Envoy
+
+Full write-up and results: `ASSIGNMENT3_REPORT.md`. Dashboard: **HomeShop Load Balancing (A3)** — http://localhost:3000/d/homeshop-lb
+
+**Setup**
+
+```bash
+docker compose up --build -d                        # 3 app replicas (deploy.replicas: 3) + Envoy (round robin)
+docker compose up -d --scale app=3                  # equivalent explicit scaling
+curl -s localhost:9901/clusters | grep health_flags # Envoy's view of A/B/C health
+```
+
+**Envoy policies.** The configs are generated by `python3 envoy/render.py`, one file per policy:
+
+```bash
+ENVOY_CONFIG=envoy-a-only.yaml        docker compose up -d envoy   # Part A/B: A only
+ENVOY_CONFIG=envoy-round-robin.yaml   docker compose up -d envoy   # Part C: equal round robin (default)
+ENVOY_CONFIG=envoy-weighted.yaml      docker compose up -d envoy   # Part D: A:B:C = 2:1:1
+ENVOY_CONFIG=envoy-least-request.yaml docker compose up -d envoy   # Part D: least request
+```
+
+**Workload** (fixed rate, open loop, no retries; results are saved to `results/<label>.json`):
+
+```bash
+docker compose run --rm tools python scripts/loadtest.py --rate 30 --duration 60 --label my-run
+```
+
+**Experiments.** This runs every run in order (about 15 minutes) and restores round robin afterwards:
+
+```bash
+bash scripts/run_experiments.sh                 # a-only, round-robin, weighted, rr-delay, lr-delay, failure
+bash scripts/run_experiments.sh lr-delay        # or a single run
+```
+
+**Faults and recovery (manual)**
+
+```bash
+docker compose run --rm tools python scripts/set_delay.py B 0.2   # add 200 ms to replica B
+docker compose run --rm tools python scripts/set_delay.py B 0     # remove it
+docker stop homeshop-app-2                                        # stop replica B
+docker start homeshop-app-2                                       # restart it
+ENVOY_CONFIG=envoy-round-robin.yaml docker compose up -d envoy    # back to normal routing
+docker compose start simulator                                    # background traffic back on
+```
+
+**Log check.** In Kibana, search `request_id:"<id>"` (use an ID from `sample_request_id` in a results file). It returns Envoy's `envoy_access` event, with `replica` and `upstream_host`, together with the replica's own event.
 
 ## Configuration
 
@@ -153,9 +201,9 @@ anomaly experiment (injecting a repeatable slowdown).
 
 Once `docker compose up --build` is running:
 
-- **Prometheus UI**: http://localhost:9090 — check Status → Targets to confirm all 5 scrape jobs (`homeshop-api`, `homeshop-worker`, `homeshop-grpc`, `node-exporter`, `prometheus`) show as "UP".
+- **Prometheus UI**: http://localhost:9090 — check Status → Targets to confirm the scrape targets show as "UP": `homeshop-app` (A, B, C), `envoy`, `homeshop-worker`, `node-exporter` and `prometheus`.
 - **Grafana**: http://localhost:3000 — log in with `admin` / `admin` (you'll be asked to set a new password, or you can skip). Open Dashboards → **HomeShop Overview**, which is provisioned automatically.
-- **Raw metrics**: http://localhost:8000/metrics (API), http://localhost:8001/metrics (worker), and http://localhost:8002/metrics (gRPC process) — useful for seeing exactly what Prometheus scrapes.
+- **Raw metrics**: http://localhost:9901/stats/prometheus (Envoy) and http://localhost:8001/metrics (worker). Each replica's `/metrics` is only reachable inside the Docker network, where Prometheus scrapes it directly.
 
 ### Metrics reference
 

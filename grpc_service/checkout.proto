@@ -4,6 +4,8 @@ package homeshop.v1;
 
 service CheckoutService {
   rpc Checkout(CheckoutRequest) returns (CheckoutResponse);
+  // Assignment 3 test traffic: read-only twin of HTTP GET /products/{product_id}.
+  rpc GetProduct(GetProductRequest) returns (ProductResponse);
 }
 
 message CheckoutRequest {
@@ -19,4 +21,17 @@ message CheckoutResponse {
   int64 total_cents = 5;
   string created_at = 6;
   string failure_reason = 7;
+}
+
+message GetProductRequest {
+  string product_id = 1;
+}
+
+message ProductResponse {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  int64 price_cents = 4;
+  int64 stock = 5;
+  string seller_id = 6;
 }

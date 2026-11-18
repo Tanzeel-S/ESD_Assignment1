@@ -22,11 +22,11 @@ Part B adds Prometheus metrics: HTTP request Counter/Histogram via
 middleware, plus business Counters/Gauge on the endpoints below.
 See /metrics for the raw exposition format Prometheus scrapes.
 """
+import asyncio
 import logging
 import time
 import uuid
-from collections import defaultdict, deque
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from fastapi import FastAPI, Depends, Header, HTTPException, Request, Response
@@ -35,16 +35,23 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import BaseModel, Field
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from .db import get_db, init_db
+from .db import SessionLocal, get_db, init_db
+from .catalog import ProductNotFound, get_product as find_product
+from .replica import INJECTED_DELAY, REPLICA_ID
 from .auth import current_user, require_same_user
 from .checkout import CheckoutRuleError, create_order_from_cart
-from .models import Product, CartItem, Order, OrderItem, OrderStatus
+from .models import Product, CartItem, Order, OrderItem, OrderStatus, IdempotencyRecord, RateLimitEvent
 from .metrics import (
     HTTP_REQUESTS_TOTAL,
     HTTP_REQUEST_DURATION_SECONDS,
+    HTTP_REQUESTS_IN_FLIGHT,
+    REPLICA_INFO,
     ORDERS_PLACED_TOTAL,
     ORDERS_CANCELLED_TOTAL,
     CHECKOUT_REJECTED_TOTAL,
@@ -81,10 +88,9 @@ app = FastAPI(
 )
 logger = logging.getLogger("homeshop.api")
 
-IDEMPOTENCY_CACHE: dict[str, dict[str, str]] = {}
 CHECKOUT_RATE_LIMIT_PER_MINUTE = 10
 CHECKOUT_RATE_LIMIT_WINDOW_SECONDS = 60
-CHECKOUT_RATE_LIMIT_BUCKETS: dict[str, deque[float]] = defaultdict(deque)
+NOT_APPLICATION_PATHS = ("/metrics", "/healthz", "/debug/delay")
 
 
 def error_payload(code: str, message: str, details: object | None = None) -> dict:
@@ -137,25 +143,62 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     )
 
 
+GRPC_SERVER = {}
+
+
 @app.on_event("startup")
 def on_startup():
     configure_logging()
     init_db()
+    REPLICA_INFO.labels(replica=REPLICA_ID).set(1)
+    # Each replica serves HTTP (uvicorn, :8000) and gRPC (:50051) from one
+    # process, so both interfaces share one /metrics registry and one identity.
+    from grpc_service.server import start_grpc_server
+
+    GRPC_SERVER["server"] = start_grpc_server()
     log_event(logger, logging.INFO, "api_started")
 
 
-def checkout_rate_limit_response(request: Request) -> JSONResponse | None:
-    """Sliding-window limit: 10 checkout calls per 60 s per (user, checkout path)."""
+@app.on_event("shutdown")
+def on_shutdown():
+    if GRPC_SERVER.get("server"):
+        GRPC_SERVER["server"].stop(grace=2)
+
+
+def _rate_limit_retry_after(bucket_key: str) -> int | None:
+    """Shared sliding window in Postgres: every replica counts the same calls.
+
+    Returns seconds to wait if the bucket is full, otherwise records the call.
+    A per-bucket advisory lock stops two replicas admitting the 11th call at once.
+    """
+    now = datetime.utcnow()
+    window = timedelta(seconds=CHECKOUT_RATE_LIMIT_WINDOW_SECONDS)
+    with SessionLocal() as db, db.begin():
+        db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:bucket))"), {"bucket": bucket_key})
+        db.query(RateLimitEvent).filter(
+            RateLimitEvent.bucket == bucket_key, RateLimitEvent.created_at <= now - window
+        ).delete()
+        times = [
+            row[0]
+            for row in db.query(RateLimitEvent.created_at)
+            .filter(RateLimitEvent.bucket == bucket_key)
+            .order_by(RateLimitEvent.created_at)
+            .all()
+        ]
+        if len(times) >= CHECKOUT_RATE_LIMIT_PER_MINUTE:
+            return max(1, int((times[0] + window - now).total_seconds()) + 1)
+        db.add(RateLimitEvent(bucket=bucket_key, created_at=now))
+    return None
+
+
+async def checkout_rate_limit_response(request: Request) -> JSONResponse | None:
+    """Sliding-window limit: 10 checkout calls per 60 s per (user, checkout path), shared by all replicas."""
     if not (request.method == "POST" and request.url.path.startswith("/checkout/")):
         return None
     actor = request.headers.get("X-HomeShop-User") or (request.client.host if request.client else "anonymous")
-    now = time.monotonic()
     bucket_key = f"{actor.strip().lower()}:{request.url.path}"
-    bucket = CHECKOUT_RATE_LIMIT_BUCKETS[bucket_key]
-    while bucket and now - bucket[0] > CHECKOUT_RATE_LIMIT_WINDOW_SECONDS:
-        bucket.popleft()
-    if len(bucket) >= CHECKOUT_RATE_LIMIT_PER_MINUTE:
-        retry_after = max(1, int(bucket[0] + CHECKOUT_RATE_LIMIT_WINDOW_SECONDS - now) + 1)
+    retry_after = await run_in_threadpool(_rate_limit_retry_after, bucket_key)
+    if retry_after is not None:
         log_event(
             logger,
             logging.WARNING,
@@ -177,7 +220,6 @@ def checkout_rate_limit_response(request: Request) -> JSONResponse | None:
                 "X-RateLimit-Remaining": "0",
             },
         )
-    bucket.append(now)
     return None
 
 
@@ -199,11 +241,17 @@ async def track_http_metrics(request: Request, call_next):
         request_id = str(uuid.uuid4())
     request.state.request_id = request_id
     token = request_id_var.set(request_id)
+    is_application = request.url.path not in NOT_APPLICATION_PATHS
+    if is_application:
+        HTTP_REQUESTS_IN_FLIGHT.inc()
     start = time.perf_counter()
     try:
+        if is_application and INJECTED_DELAY["seconds"] > 0:
+            # Assignment 3 Part D: make this replica slow (health checks unaffected).
+            await asyncio.sleep(INJECTED_DELAY["seconds"])
         # Rate-limit after the request ID is assigned so 429s are logged,
         # carry X-Request-ID, and are counted in the HTTP metrics.
-        limited = checkout_rate_limit_response(request)
+        limited = await checkout_rate_limit_response(request)
         response = limited or await call_next(request)
         duration = time.perf_counter() - start
         route = request.scope.get("route")
@@ -219,6 +267,9 @@ async def track_http_metrics(request: Request, call_next):
             method=request.method, path=path_template, status=response.status_code
         ).inc()
         response.headers["X-Request-ID"] = request_id
+        response.headers["X-Replica"] = REPLICA_ID
+        if request.url.path == "/healthz":
+            return response  # health checks every 2 s would flood the logs
         log_event(
             logger,
             logging.INFO,
@@ -247,12 +298,32 @@ async def track_http_metrics(request: Request, call_next):
         )
         raise
     finally:
+        if is_application:
+            HTTP_REQUESTS_IN_FLIGHT.dec()
         request_id_var.reset(token)
 
 
 @app.get("/metrics")
 def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+@app.get("/healthz")
+def healthz():
+    """Envoy active health check. Deliberately cheap: a slow replica still passes."""
+    return {"status": "ok", "replica": REPLICA_ID}
+
+
+class DelayIn(BaseModel):
+    seconds: float = Field(ge=0, le=5)
+
+
+@app.post("/debug/delay")
+def set_delay(payload: DelayIn):
+    """Demo only (A3 Part D): add a fixed delay to every application request on THIS replica."""
+    INJECTED_DELAY["seconds"] = payload.seconds
+    log_event(logger, logging.WARNING, "injected_delay_set", seconds=payload.seconds)
+    return {"replica": REPLICA_ID, "delay_seconds": payload.seconds}
 
 
 # ---------- Schemas ----------
@@ -357,10 +428,10 @@ def list_my_products(
 
 @app.get("/products/{product_id}", response_model=ProductOut)
 def get_product(product_id: str, db: Session = Depends(get_db)):
-    product = db.query(Product).get(product_id)
-    if not product:
-        raise HTTPException(404, "Product not found")
-    return product
+    try:
+        return find_product(db, product_id)
+    except ProductNotFound:
+        raise HTTPException(404, "Product not found") from None
 
 
 # ---------- Cart ----------
@@ -499,36 +570,43 @@ def checkout(
             time.sleep(3)
         raise HTTPException(503, {"code": "transient_failure", "message": "Injected checkout failure; retry later."})
     idem_key = (idempotency_key or "").strip()
+    key = f"{actor}:{idem_key}"
     if idem_key:
-        key = f"checkout:{user_id}:{idem_key}"
-        previous = IDEMPOTENCY_CACHE.get(key)
-        if previous and previous.get("status") == "completed":
-            order = db.query(Order).get(previous["order_id"])
-            if order is not None:
-                return order
-        if previous and previous.get("status") == "in_progress":
+        # Shared by all replicas: the primary key makes "claim this key" atomic,
+        # so a retry routed to a different replica still finds the first attempt.
+        try:
+            db.add(IdempotencyRecord(key=key, status="in_progress"))
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            previous = db.get(IdempotencyRecord, key)
+            if previous and previous.status == "completed":
+                order = db.get(Order, previous.order_id)
+                if order is not None:
+                    return order
             raise HTTPException(
                 409,
                 {"code": "idempotency_conflict", "message": "This checkout is already in progress for this idempotency key."},
-            )
-        IDEMPOTENCY_CACHE[key] = {"status": "in_progress"}
+            ) from None
 
     try:
         order = create_order_from_cart(db, actor)
         if idem_key:
-            IDEMPOTENCY_CACHE[key] = {"status": "completed", "order_id": order.id}
+            record = db.get(IdempotencyRecord, key)
+            record.status, record.order_id = "completed", order.id
+            db.commit()
         return order
-    except CheckoutRuleError as error:
+    except Exception as error:
         db.rollback()
         if idem_key:
-            IDEMPOTENCY_CACHE.pop(f"checkout:{user_id}:{idem_key}", None)
-        raise HTTPException(
-            error.status_code,
-            {"code": error.code, "message": error.message},
-        ) from error
-    except Exception:
-        if idem_key:
-            IDEMPOTENCY_CACHE.pop(f"checkout:{user_id}:{idem_key}", None)
+            # Release the key so the client may retry a failed checkout.
+            db.query(IdempotencyRecord).filter_by(key=key).delete()
+            db.commit()
+        if isinstance(error, CheckoutRuleError):
+            raise HTTPException(
+                error.status_code,
+                {"code": error.code, "message": error.message},
+            ) from error
         raise
 
 

@@ -39,6 +39,11 @@ class CheckoutServiceStub(object):
                 request_serializer=grpc__service_dot_checkout__pb2.CheckoutRequest.SerializeToString,
                 response_deserializer=grpc__service_dot_checkout__pb2.CheckoutResponse.FromString,
                 _registered_method=True)
+        self.GetProduct = channel.unary_unary(
+                '/homeshop.v1.CheckoutService/GetProduct',
+                request_serializer=grpc__service_dot_checkout__pb2.GetProductRequest.SerializeToString,
+                response_deserializer=grpc__service_dot_checkout__pb2.ProductResponse.FromString,
+                _registered_method=True)
 
 
 class CheckoutServiceServicer(object):
@@ -50,6 +55,13 @@ class CheckoutServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetProduct(self, request, context):
+        """Assignment 3 test traffic: read-only twin of HTTP GET /products/{product_id}.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_CheckoutServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -57,6 +69,11 @@ def add_CheckoutServiceServicer_to_server(servicer, server):
                     servicer.Checkout,
                     request_deserializer=grpc__service_dot_checkout__pb2.CheckoutRequest.FromString,
                     response_serializer=grpc__service_dot_checkout__pb2.CheckoutResponse.SerializeToString,
+            ),
+            'GetProduct': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetProduct,
+                    request_deserializer=grpc__service_dot_checkout__pb2.GetProductRequest.FromString,
+                    response_serializer=grpc__service_dot_checkout__pb2.ProductResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -86,6 +103,33 @@ class CheckoutService(object):
             '/homeshop.v1.CheckoutService/Checkout',
             grpc__service_dot_checkout__pb2.CheckoutRequest.SerializeToString,
             grpc__service_dot_checkout__pb2.CheckoutResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetProduct(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/homeshop.v1.CheckoutService/GetProduct',
+            grpc__service_dot_checkout__pb2.GetProductRequest.SerializeToString,
+            grpc__service_dot_checkout__pb2.ProductResponse.FromString,
             options,
             channel_credentials,
             insecure,

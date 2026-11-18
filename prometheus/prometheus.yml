@@ -3,17 +3,25 @@ global:
   evaluation_interval: 5s
 
 scrape_configs:
-  - job_name: "homeshop-api"
+  # Assignment 3: each replica is scraped directly (not through Envoy), one
+  # target per replica, labelled A/B/C. HTTP and gRPC metrics share one endpoint.
+  - job_name: "homeshop-app"
     static_configs:
-      - targets: ["api:8000"]
+      - targets: ["homeshop-app-1:8000"]
+        labels: { replica: "A" }
+      - targets: ["homeshop-app-2:8000"]
+        labels: { replica: "B" }
+      - targets: ["homeshop-app-3:8000"]
+        labels: { replica: "C" }
+
+  - job_name: "envoy"
+    metrics_path: /stats/prometheus
+    static_configs:
+      - targets: ["envoy:9901"]
 
   - job_name: "homeshop-worker"
     static_configs:
       - targets: ["worker:8001"]
-
-  - job_name: "homeshop-grpc"
-    static_configs:
-      - targets: ["grpc:8002"]
 
   - job_name: "node-exporter"
     static_configs:

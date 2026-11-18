@@ -1,0 +1,823 @@
+{
+  "title": "HomeShop Load Balancing (A3)",
+  "uid": "homeshop-lb",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "tags": [
+    "assignment3"
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "HTTP \u2014 GET /products/{product_id}",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "id": 2,
+      "title": "HTTP request rate per replica (req/s, 1m)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus"
+      },
+      "description": "Calls per second handled by each replica, scraped directly from A, B and C (not through Envoy). 1-minute rate window.",
+      "targets": [
+        {
+          "expr": "sum by (replica) (rate(http_requests_total{job=\"homeshop-app\", method=\"GET\", path=\"/products/{product_id}\"}[1m]))",
+          "legendFormat": "{{replica}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "HTTP share of total traffic per replica (%, 1m)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus"
+      },
+      "description": "Each replica's percentage of all calls for this operation. Round robin target: 33.3% each; weighted 2:1:1 target: 50/25/25.",
+      "targets": [
+        {
+          "expr": "100 * sum by (replica) (rate(http_requests_total{job=\"homeshop-app\", method=\"GET\", path=\"/products/{product_id}\"}[1m])) / scalar(sum(rate(http_requests_total{job=\"homeshop-app\", method=\"GET\", path=\"/products/{product_id}\"}[1m])))",
+          "legendFormat": "{{replica}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "HTTP active requests per replica (max in 15s)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus"
+      },
+      "description": "In-flight requests on each replica. The Gauge is sampled every 5 s scrape, so max_over_time over 15 s is shown to catch short peaks.",
+      "targets": [
+        {
+          "expr": "max by (replica) (max_over_time(http_requests_in_flight{job=\"homeshop-app\"}[15s]))",
+          "legendFormat": "{{replica}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "HTTP p50 / p95 server duration per replica (1m window)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus"
+      },
+      "description": "Server-side duration measured inside each replica, histogram_quantile over a 1-minute rate window.",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le, replica) (rate(http_request_duration_seconds_bucket{job=\"homeshop-app\", method=\"GET\", path=\"/products/{product_id}\"}[1m])))",
+          "legendFormat": "{{replica}} p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, replica) (rate(http_request_duration_seconds_bucket{job=\"homeshop-app\", method=\"GET\", path=\"/products/{product_id}\"}[1m])))",
+          "legendFormat": "{{replica}} p95",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "HTTP errors per replica by status (req/s, 1m)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      },
+      "datasource": {
+        "type": "prometheus"
+      },
+      "description": "Non-success responses returned by each replica. Requests Envoy could not deliver (replica down) appear in the Envoy row instead.",
+      "targets": [
+        {
+          "expr": "sum by (replica, status) (rate(http_requests_total{job=\"homeshop-app\", method=\"GET\", path=\"/products/{product_id}\", status!~\"2..\"}[1m]))",
+          "legendFormat": "{{replica}} {{status}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "HTTP total rate, all replicas (req/s, 1m)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "datasource": {
+        "type": "prometheus"
+      },
+      "description": "Sum across replicas, split by status; should match the load generator's fixed rate.",
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{job=\"homeshop-app\", method=\"GET\", path=\"/products/{product_id}\"}[1m]))",
+          "legendFormat": "total",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (status) (rate(http_requests_total{job=\"homeshop-app\", method=\"GET\", path=\"/products/{product_id}\"}[1m]))",
+          "legendFormat": "status {{status}}",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "row",
+      "title": "gRPC \u2014 GetProduct",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 17
+      },
+      "panels": []
+    },
+    {
+      "id": 9,
+      "title": "gRPC request rate per replica (req/s, 1m)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 18
+      },
+      "datasource": {
+        "type": "prometheus"
+      },
+      "description": "Calls per second handled by each replica, scraped directly from A, B and C (not through Envoy). 1-minute rate window.",
+      "targets": [
+        {
+          "expr": "sum by (replica) (rate(homeshop_grpc_rpc_calls_total{job=\"homeshop-app\", rpc_method=\"GetProduct\"}[1m]))",
+          "legendFormat": "{{replica}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "gRPC share of total traffic per replica (%, 1m)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 18
+      },
+      "datasource": {
+        "type": "prometheus"
+      },
+      "description": "Each replica's percentage of all calls for this operation. Round robin target: 33.3% each; weighted 2:1:1 target: 50/25/25.",
+      "targets": [
+        {
+          "expr": "100 * sum by (replica) (rate(homeshop_grpc_rpc_calls_total{job=\"homeshop-app\", rpc_method=\"GetProduct\"}[1m])) / scalar(sum(rate(homeshop_grpc_rpc_calls_total{job=\"homeshop-app\", rpc_method=\"GetProduct\"}[1m])))",
+          "legendFormat": "{{replica}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "gRPC active requests per replica (max in 15s)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 18
+      },
+      "datasource": {
+        "type": "prometheus"
+      },
+      "description": "In-flight requests on each replica. The Gauge is sampled every 5 s scrape, so max_over_time over 15 s is shown to catch short peaks.",
+      "targets": [
+        {
+          "expr": "max by (replica) (max_over_time(homeshop_grpc_rpc_in_flight{job=\"homeshop-app\", rpc_method=\"GetProduct\"}[15s]))",
+          "legendFormat": "{{replica}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "title": "gRPC p50 / p95 server duration per replica (1m window)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 18
+      },
+      "datasource": {
+        "type": "prometheus"
+      },
+      "description": "Server-side duration measured inside each replica, histogram_quantile over a 1-minute rate window.",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le, replica) (rate(homeshop_grpc_rpc_duration_seconds_bucket{job=\"homeshop-app\", rpc_method=\"GetProduct\"}[1m])))",
+          "legendFormat": "{{replica}} p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, replica) (rate(homeshop_grpc_rpc_duration_seconds_bucket{job=\"homeshop-app\", rpc_method=\"GetProduct\"}[1m])))",
+          "legendFormat": "{{replica}} p95",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "title": "gRPC errors per replica by status (req/s, 1m)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 26
+      },
+      "datasource": {
+        "type": "prometheus"
+      },
+      "description": "Non-success responses returned by each replica. Requests Envoy could not deliver (replica down) appear in the Envoy row instead.",
+      "targets": [
+        {
+          "expr": "sum by (replica, status) (rate(homeshop_grpc_rpc_calls_total{job=\"homeshop-app\", rpc_method=\"GetProduct\", status!=\"OK\"}[1m]))",
+          "legendFormat": "{{replica}} {{status}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 14,
+      "title": "gRPC total rate, all replicas (req/s, 1m)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 26
+      },
+      "datasource": {
+        "type": "prometheus"
+      },
+      "description": "Sum across replicas, split by status; should match the load generator's fixed rate.",
+      "targets": [
+        {
+          "expr": "sum(rate(homeshop_grpc_rpc_calls_total{job=\"homeshop-app\", rpc_method=\"GetProduct\"}[1m]))",
+          "legendFormat": "total",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (status) (rate(homeshop_grpc_rpc_calls_total{job=\"homeshop-app\", rpc_method=\"GetProduct\"}[1m]))",
+          "legendFormat": "status {{status}}",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 15,
+      "type": "row",
+      "title": "Envoy (scraped directly at envoy:9901)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
+      "panels": []
+    },
+    {
+      "id": 16,
+      "title": "Envoy healthy hosts per cluster",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 35
+      },
+      "datasource": {
+        "type": "prometheus"
+      },
+      "description": "Hosts passing active health checks (interval 2s, timeout 1s, unhealthy after 2 failures, healthy after 2 successes).",
+      "targets": [
+        {
+          "expr": "envoy_cluster_membership_healthy{envoy_cluster_name=~\"app_.*\"}",
+          "legendFormat": "{{envoy_cluster_name}} healthy",
+          "refId": "A"
+        },
+        {
+          "expr": "envoy_cluster_membership_total{envoy_cluster_name=~\"app_.*\"}",
+          "legendFormat": "{{envoy_cluster_name}} total",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 17,
+      "title": "Envoy responses to clients by listener and class (req/s, 1m)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 35
+      },
+      "datasource": {
+        "type": "prometheus"
+      },
+      "description": "What Envoy returned to clients, including 5xx generated by Envoy itself when no healthy upstream was available.",
+      "targets": [
+        {
+          "expr": "sum by (envoy_http_conn_manager_prefix, envoy_response_code_class) (rate(envoy_http_downstream_rq_xx{envoy_http_conn_manager_prefix=~\".*_ingress\"}[1m]))",
+          "legendFormat": "{{envoy_http_conn_manager_prefix}} {{envoy_response_code_class}}xx",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 18,
+      "title": "Envoy upstream connect failures & active requests",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 35
+      },
+      "datasource": {
+        "type": "prometheus"
+      },
+      "description": "Connection failures to replicas (e.g. while B is stopped) and requests currently in flight through Envoy.",
+      "targets": [
+        {
+          "expr": "sum by (envoy_cluster_name) (rate(envoy_cluster_upstream_cx_connect_fail{envoy_cluster_name=~\"app_.*\"}[1m]))",
+          "legendFormat": "{{envoy_cluster_name}} connect fail/s",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (envoy_cluster_name) (envoy_cluster_upstream_rq_active{envoy_cluster_name=~\"app_.*\"})",
+          "legendFormat": "{{envoy_cluster_name}} active rq",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    }
+  ]
+}

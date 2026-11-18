@@ -27,6 +27,10 @@ filebeat.inputs:
             not:
               or:
                 - equals:
+                    service_name: "homeshop-app"
+                - equals:
+                    service_name: "homeshop-envoy"
+                - equals:
                     service_name: "homeshop-api"
                 - equals:
                     service_name: "homeshop-worker"

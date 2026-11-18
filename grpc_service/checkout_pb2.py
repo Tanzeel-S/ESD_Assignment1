@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1bgrpc_service/checkout.proto\x12\x0bhomeshop.v1\"\"\n\x0f\x43heckoutRequest\x12\x0f\n\x07user_id\x18\x01 \x01(\t\"\x99\x01\n\x10\x43heckoutResponse\x12\x10\n\x08order_id\x18\x01 \x01(\t\x12\x0f\n\x07user_id\x18\x02 \x01(\t\x12\x11\n\tseller_id\x18\x03 \x01(\t\x12\x0e\n\x06status\x18\x04 \x01(\t\x12\x13\n\x0btotal_cents\x18\x05 \x01(\x03\x12\x12\n\ncreated_at\x18\x06 \x01(\t\x12\x16\n\x0e\x66\x61ilure_reason\x18\x07 \x01(\t2Z\n\x0f\x43heckoutService\x12G\n\x08\x43heckout\x12\x1c.homeshop.v1.CheckoutRequest\x1a\x1d.homeshop.v1.CheckoutResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1bgrpc_service/checkout.proto\x12\x0bhomeshop.v1\"\"\n\x0f\x43heckoutRequest\x12\x0f\n\x07user_id\x18\x01 \x01(\t\"\x99\x01\n\x10\x43heckoutResponse\x12\x10\n\x08order_id\x18\x01 \x01(\t\x12\x0f\n\x07user_id\x18\x02 \x01(\t\x12\x11\n\tseller_id\x18\x03 \x01(\t\x12\x0e\n\x06status\x18\x04 \x01(\t\x12\x13\n\x0btotal_cents\x18\x05 \x01(\x03\x12\x12\n\ncreated_at\x18\x06 \x01(\t\x12\x16\n\x0e\x66\x61ilure_reason\x18\x07 \x01(\t\"\'\n\x11GetProductRequest\x12\x12\n\nproduct_id\x18\x01 \x01(\t\"w\n\x0fProductResponse\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x03 \x01(\t\x12\x13\n\x0bprice_cents\x18\x04 \x01(\x03\x12\r\n\x05stock\x18\x05 \x01(\x03\x12\x11\n\tseller_id\x18\x06 \x01(\t2\xa6\x01\n\x0f\x43heckoutService\x12G\n\x08\x43heckout\x12\x1c.homeshop.v1.CheckoutRequest\x1a\x1d.homeshop.v1.CheckoutResponse\x12J\n\nGetProduct\x12\x1e.homeshop.v1.GetProductRequest\x1a\x1c.homeshop.v1.ProductResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -35,6 +35,10 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_CHECKOUTREQUEST']._serialized_end=78
   _globals['_CHECKOUTRESPONSE']._serialized_start=81
   _globals['_CHECKOUTRESPONSE']._serialized_end=234
-  _globals['_CHECKOUTSERVICE']._serialized_start=236
-  _globals['_CHECKOUTSERVICE']._serialized_end=326
+  _globals['_GETPRODUCTREQUEST']._serialized_start=236
+  _globals['_GETPRODUCTREQUEST']._serialized_end=275
+  _globals['_PRODUCTRESPONSE']._serialized_start=277
+  _globals['_PRODUCTRESPONSE']._serialized_end=396
+  _globals['_CHECKOUTSERVICE']._serialized_start=399
+  _globals['_CHECKOUTSERVICE']._serialized_end=565
 # @@protoc_insertion_point(module_scope)

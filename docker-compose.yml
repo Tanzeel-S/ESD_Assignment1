@@ -1,3 +1,6 @@
+# Fixed project name so scaled replicas are always homeshop-app-1/2/3 (Envoy and Prometheus use these names).
+name: homeshop
+
 services:
   db:
     container_name: homeshop-db
@@ -16,41 +19,55 @@ services:
       timeout: 5s
       retries: 5
 
-  api:
-    container_name: homeshop-api
+  # Assignment 3: three identical replicas (A, B, C) of the HTTP + gRPC application.
+  # Not published to the host; clients reach them only through Envoy.
+  app:
     build:
       context: .
-      dockerfile: Dockerfile.api
-    ports:
-      - "8000:8000"
+      dockerfile: Dockerfile.app
+    deploy:
+      replicas: 3
     environment:
       DATABASE_URL: postgresql://homeshop:homeshop@db:5432/homeshop
-      SERVICE_NAME: homeshop-api
-    volumes:
-      - ./app:/code/app
-    depends_on:
-      db:
-        condition: service_healthy
-
-  grpc:
-    container_name: homeshop-grpc
-    build:
-      context: .
-      dockerfile: Dockerfile.grpc
-    ports:
-      - "50051:50051"
-      - "8002:8002" # Prometheus metrics endpoint for the gRPC process
-    environment:
-      DATABASE_URL: postgresql://homeshop:homeshop@db:5432/homeshop
-      SERVICE_NAME: homeshop-grpc
+      SERVICE_NAME: homeshop-app
       GRPC_PORT: "50051"
-      GRPC_METRICS_PORT: "8002"
     volumes:
       - ./app:/code/app
       - ./grpc_service:/code/grpc_service
     depends_on:
       db:
         condition: service_healthy
+
+  envoy:
+    container_name: homeshop-envoy
+    image: envoyproxy/envoy:v1.31.2
+    # Switch policy: ENVOY_CONFIG=envoy-weighted.yaml docker compose up -d envoy
+    command: ["envoy", "-c", "/etc/envoy/envoy.yaml", "--log-level", "warn"]
+    volumes:
+      - ./envoy/${ENVOY_CONFIG:-envoy-round-robin.yaml}:/etc/envoy/envoy.yaml:ro
+    ports:
+      - "8000:8000"   # HTTP (same host port the API used before)
+      - "50051:50051" # gRPC
+      - "9901:9901"   # Envoy admin + /stats/prometheus
+    depends_on:
+      - app
+
+  # Client container for tests, the load generator and the A2 scripts:
+  #   docker compose run --rm tools python scripts/loadtest.py ...
+  tools:
+    profiles: ["tools"]
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    command: ["sleep", "infinity"]
+    environment:
+      API_URL: http://envoy:8000
+      GRPC_TARGET: envoy:50051
+    volumes:
+      - ./app:/code/app
+      - ./grpc_service:/code/grpc_service
+      - ./scripts:/code/scripts
+      - ./results:/code/results
 
   worker:
     container_name: homeshop-worker
@@ -81,10 +98,10 @@ services:
       context: .
       dockerfile: Dockerfile.simulator
     environment:
-      API_URL: http://api:8000
+      API_URL: http://envoy:8000
       SIMULATOR_INTERVAL: "1.0"
     depends_on:
-      - api
+      - envoy
 
   node-exporter:
     container_name: homeshop-node-exporter
@@ -113,9 +130,9 @@ services:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
     depends_on:
-      - api
+      - app
+      - envoy
       - worker
-      - grpc
       - node-exporter
 
   grafana:

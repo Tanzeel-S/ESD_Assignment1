@@ -13,12 +13,20 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
 def init_db():
-    Base.metadata.create_all(bind=engine)
+    # Three replicas start at once; a Postgres advisory lock makes them create
+    # and migrate the schema one at a time instead of racing.
+    if engine.dialect.name == "postgresql":
+        with engine.begin() as connection:
+            connection.execute(text("SELECT pg_advisory_xact_lock(424242)"))
+            Base.metadata.create_all(bind=connection)
+    else:
+        Base.metadata.create_all(bind=engine)
     # ``create_all`` does not modify tables that already exist. These two
     # additive migrations preserve assignment data created before seller
     # ownership was introduced and place it in a clearly named legacy store.
     if engine.dialect.name == "postgresql":
         with engine.begin() as connection:
+            connection.execute(text("SELECT pg_advisory_xact_lock(424242)"))
             connection.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS seller_id VARCHAR(32)"))
             connection.execute(text("UPDATE products SET seller_id = 'legacy-store' WHERE seller_id IS NULL"))
             connection.execute(text("ALTER TABLE products ALTER COLUMN seller_id SET NOT NULL"))
