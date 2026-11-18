@@ -30,6 +30,8 @@ filebeat.inputs:
                     service_name: "homeshop-api"
                 - equals:
                     service_name: "homeshop-worker"
+                - equals:
+                    service_name: "homeshop-grpc"
       - add_fields:
           target: ""
           fields:

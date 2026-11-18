@@ -1,0 +1,1530 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "HomeShop API",
+        "version": "2.0.0"
+    },
+    "paths": {
+        "/metrics": {
+            "get": {
+                "summary": "Metrics",
+                "operationId": "metrics_metrics_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input or business-rule rejection",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Request validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/products": {
+            "post": {
+                "summary": "Create Product",
+                "operationId": "create_product_products_post",
+                "parameters": [
+                    {
+                        "name": "x-homeshop-user",
+                        "in": "header",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "X-Homeshop-User"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ProductIn"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProductOut"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input or business-rule rejection",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Request validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "get": {
+                "summary": "List Products",
+                "operationId": "list_products_products_get",
+                "parameters": [
+                    {
+                        "name": "seller_id",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Seller Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/ProductOut"
+                                    },
+                                    "title": "Response List Products Products Get"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input or business-rule rejection",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Request validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/products/{product_id}/restock": {
+            "post": {
+                "summary": "Restock Product",
+                "description": "Add stock to an existing product. Lets the inventory Gauge go back up,\nnot just down, which is a more convincing demo in Grafana.",
+                "operationId": "restock_product_products__product_id__restock_post",
+                "parameters": [
+                    {
+                        "name": "product_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Product Id"
+                        }
+                    },
+                    {
+                        "name": "quantity",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "title": "Quantity"
+                        }
+                    },
+                    {
+                        "name": "x-homeshop-user",
+                        "in": "header",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "X-Homeshop-User"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProductOut"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input or business-rule rejection",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Request validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/products/mine": {
+            "get": {
+                "summary": "List My Products",
+                "operationId": "list_my_products_products_mine_get",
+                "parameters": [
+                    {
+                        "name": "x-homeshop-user",
+                        "in": "header",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "X-Homeshop-User"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/ProductOut"
+                                    },
+                                    "title": "Response List My Products Products Mine Get"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input or business-rule rejection",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Request validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/products/{product_id}": {
+            "get": {
+                "summary": "Get Product",
+                "operationId": "get_product_products__product_id__get",
+                "parameters": [
+                    {
+                        "name": "product_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Product Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProductOut"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input or business-rule rejection",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Request validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/cart/{user_id}/add": {
+            "post": {
+                "summary": "Add To Cart",
+                "operationId": "add_to_cart_cart__user_id__add_post",
+                "parameters": [
+                    {
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "User Id"
+                        }
+                    },
+                    {
+                        "name": "x-homeshop-user",
+                        "in": "header",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "X-Homeshop-User"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CartAddIn"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input or business-rule rejection",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Request validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/cart/{user_id}": {
+            "get": {
+                "summary": "View Cart",
+                "operationId": "view_cart_cart__user_id__get",
+                "parameters": [
+                    {
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "User Id"
+                        }
+                    },
+                    {
+                        "name": "x-homeshop-user",
+                        "in": "header",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "X-Homeshop-User"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input or business-rule rejection",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Request validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/cart/{user_id}/item/{product_id}": {
+            "patch": {
+                "summary": "Update Cart Item",
+                "operationId": "update_cart_item_cart__user_id__item__product_id__patch",
+                "parameters": [
+                    {
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "User Id"
+                        }
+                    },
+                    {
+                        "name": "product_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Product Id"
+                        }
+                    },
+                    {
+                        "name": "x-homeshop-user",
+                        "in": "header",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "X-Homeshop-User"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CartUpdateIn"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input or business-rule rejection",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Request validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Remove Cart Item",
+                "operationId": "remove_cart_item_cart__user_id__item__product_id__delete",
+                "parameters": [
+                    {
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "User Id"
+                        }
+                    },
+                    {
+                        "name": "product_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Product Id"
+                        }
+                    },
+                    {
+                        "name": "x-homeshop-user",
+                        "in": "header",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "X-Homeshop-User"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input or business-rule rejection",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Request validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/checkout/{user_id}": {
+            "post": {
+                "summary": "Checkout",
+                "operationId": "checkout_checkout__user_id__post",
+                "parameters": [
+                    {
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "User Id"
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Client-chosen key; repeating it returns the original order instead of creating another.",
+                            "title": "Idempotency-Key"
+                        },
+                        "description": "Client-chosen key; repeating it returns the original order instead of creating another."
+                    },
+                    {
+                        "name": "x-homeshop-user",
+                        "in": "header",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "X-Homeshop-User"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OrderOut"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input or business-rule rejection",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Request validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Caller may not check out another user's cart",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "A checkout with this Idempotency-Key is still in progress",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Checkout rate limit exceeded (10 calls / 60 s per user)",
+                        "headers": {
+                            "Retry-After": {
+                                "description": "Seconds until a call is allowed",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Injected transient failure (reliability demo only)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/seller/orders": {
+            "get": {
+                "summary": "List Seller Orders",
+                "operationId": "list_seller_orders_seller_orders_get",
+                "parameters": [
+                    {
+                        "name": "x-homeshop-user",
+                        "in": "header",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "X-Homeshop-User"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/OrderOut"
+                                    },
+                                    "title": "Response List Seller Orders Seller Orders Get"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input or business-rule rejection",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Request validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/orders/{order_id}": {
+            "get": {
+                "summary": "Get Order",
+                "operationId": "get_order_orders__order_id__get",
+                "parameters": [
+                    {
+                        "name": "order_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Order Id"
+                        }
+                    },
+                    {
+                        "name": "x-homeshop-user",
+                        "in": "header",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "X-Homeshop-User"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OrderOut"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input or business-rule rejection",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Request validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/orders": {
+            "get": {
+                "summary": "List Orders",
+                "description": "Return the selected customer's order history, never all customers' orders.",
+                "operationId": "list_orders_orders_get",
+                "parameters": [
+                    {
+                        "name": "user_id",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "User Id"
+                        }
+                    },
+                    {
+                        "name": "x-homeshop-user",
+                        "in": "header",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "X-Homeshop-User"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/OrderOut"
+                                    },
+                                    "title": "Response List Orders Orders Get"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input or business-rule rejection",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Request validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/orders/{order_id}/cancel": {
+            "post": {
+                "summary": "Cancel Order",
+                "operationId": "cancel_order_orders__order_id__cancel_post",
+                "parameters": [
+                    {
+                        "name": "order_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Order Id"
+                        }
+                    },
+                    {
+                        "name": "x-homeshop-user",
+                        "in": "header",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "X-Homeshop-User"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OrderOut"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input or business-rule rejection",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Request validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/experiment/cardinality/run": {
+            "post": {
+                "summary": "Run Cardinality Experiment",
+                "description": "Part E.2: Cardinality Explosion Experiment.\nGenerates `count` unique request IDs as label values on a counter metric,\ndemonstrating time-series growth (cardinality explosion) in Prometheus.",
+                "operationId": "run_cardinality_experiment_experiment_cardinality_run_post",
+                "parameters": [
+                    {
+                        "name": "count",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 100,
+                            "title": "Count"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input or business-rule rejection",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Request validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/debug/checkout-fault": {
+            "post": {
+                "summary": "Set Checkout Fault",
+                "description": "Demo only: make the next `count` checkout calls fail fast (503) or slowly (3 s, then 503).",
+                "operationId": "set_checkout_fault_debug_checkout_fault_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CheckoutFaultIn"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input or business-rule rejection",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Request validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Unexpected server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "CartAddIn": {
+                "properties": {
+                    "product_id": {
+                        "type": "string",
+                        "title": "Product Id"
+                    },
+                    "quantity": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0.0,
+                        "title": "Quantity",
+                        "default": 1
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "product_id"
+                ],
+                "title": "CartAddIn"
+            },
+            "CartUpdateIn": {
+                "properties": {
+                    "quantity": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0.0,
+                        "title": "Quantity"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "quantity"
+                ],
+                "title": "CartUpdateIn"
+            },
+            "CheckoutFaultIn": {
+                "properties": {
+                    "mode": {
+                        "type": "string",
+                        "pattern": "^(error|slow|off)$",
+                        "title": "Mode"
+                    },
+                    "count": {
+                        "type": "integer",
+                        "maximum": 100.0,
+                        "minimum": 0.0,
+                        "title": "Count",
+                        "default": 1
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "mode"
+                ],
+                "title": "CheckoutFaultIn"
+            },
+            "ErrorBody": {
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "title": "Code"
+                    },
+                    "message": {
+                        "type": "string",
+                        "title": "Message"
+                    },
+                    "details": {
+                        "anyOf": [
+                            {},
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Details"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "code",
+                    "message"
+                ],
+                "title": "ErrorBody"
+            },
+            "ErrorResponse": {
+                "properties": {
+                    "error": {
+                        "$ref": "#/components/schemas/ErrorBody"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "error"
+                ],
+                "title": "ErrorResponse"
+            },
+            "OrderOut": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    },
+                    "user_id": {
+                        "type": "string",
+                        "title": "User Id"
+                    },
+                    "seller_id": {
+                        "type": "string",
+                        "title": "Seller Id"
+                    },
+                    "status": {
+                        "$ref": "#/components/schemas/OrderStatus"
+                    },
+                    "total_cents": {
+                        "type": "integer",
+                        "title": "Total Cents"
+                    },
+                    "failure_reason": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Failure Reason"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "title": "Created At"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "user_id",
+                    "seller_id",
+                    "status",
+                    "total_cents",
+                    "created_at"
+                ],
+                "title": "OrderOut"
+            },
+            "OrderStatus": {
+                "type": "string",
+                "enum": [
+                    "pending",
+                    "processing",
+                    "completed",
+                    "failed",
+                    "cancelled"
+                ],
+                "title": "OrderStatus"
+            },
+            "ProductIn": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "description": {
+                        "type": "string",
+                        "title": "Description",
+                        "default": ""
+                    },
+                    "price_cents": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0.0,
+                        "title": "Price Cents"
+                    },
+                    "stock": {
+                        "type": "integer",
+                        "minimum": 0.0,
+                        "title": "Stock",
+                        "default": 0
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "name",
+                    "price_cents"
+                ],
+                "title": "ProductIn"
+            },
+            "ProductOut": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    },
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "description": {
+                        "type": "string",
+                        "title": "Description"
+                    },
+                    "price_cents": {
+                        "type": "integer",
+                        "title": "Price Cents"
+                    },
+                    "stock": {
+                        "type": "integer",
+                        "title": "Stock"
+                    },
+                    "seller_id": {
+                        "type": "string",
+                        "title": "Seller Id"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "name",
+                    "description",
+                    "price_cents",
+                    "stock",
+                    "seller_id"
+                ],
+                "title": "ProductOut"
+            }
+        }
+    }
+}

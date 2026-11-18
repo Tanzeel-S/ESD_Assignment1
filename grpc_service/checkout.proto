@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package homeshop.v1;
+
+service CheckoutService {
+  rpc Checkout(CheckoutRequest) returns (CheckoutResponse);
+}
+
+message CheckoutRequest {
+  // The demo identity corresponding to HTTP's X-HomeShop-User header.
+  string user_id = 1;
+}
+
+message CheckoutResponse {
+  string order_id = 1;
+  string user_id = 2;
+  string seller_id = 3;
+  string status = 4;
+  int64 total_cents = 5;
+  string created_at = 6;
+  string failure_reason = 7;
+}

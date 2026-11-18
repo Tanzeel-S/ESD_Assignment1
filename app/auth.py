@@ -13,15 +13,23 @@ from fastapi import Header, HTTPException
 USER_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
 
 
+def validate_user_id(user_id: str | None) -> str:
+    """Normalize and validate the constrained HomeShop demo identity."""
+    normalized = (user_id or "alice").strip().lower()
+    if not USER_ID_RE.fullmatch(normalized):
+        raise ValueError("User ID must be 1-32 lowercase letters, numbers, _ or -")
+    return normalized
+
+
 def current_user(x_homeshop_user: str | None = Header(default=None)) -> str:
     """Return a constrained, stable demo identity, defaulting to ``alice``."""
-    user_id = (x_homeshop_user or "alice").strip().lower()
-    if not USER_ID_RE.fullmatch(user_id):
+    try:
+        return validate_user_id(x_homeshop_user)
+    except ValueError as error:
         raise HTTPException(
             status_code=400,
-            detail="User ID must be 2-32 lowercase letters, numbers, _ or -",
-        )
-    return user_id
+            detail=str(error),
+        ) from error
 
 
 def require_same_user(actor: str, user_id: str) -> None:

@@ -32,6 +32,26 @@ services:
       db:
         condition: service_healthy
 
+  grpc:
+    container_name: homeshop-grpc
+    build:
+      context: .
+      dockerfile: Dockerfile.grpc
+    ports:
+      - "50051:50051"
+      - "8002:8002" # Prometheus metrics endpoint for the gRPC process
+    environment:
+      DATABASE_URL: postgresql://homeshop:homeshop@db:5432/homeshop
+      SERVICE_NAME: homeshop-grpc
+      GRPC_PORT: "50051"
+      GRPC_METRICS_PORT: "8002"
+    volumes:
+      - ./app:/code/app
+      - ./grpc_service:/code/grpc_service
+    depends_on:
+      db:
+        condition: service_healthy
+
   worker:
     container_name: homeshop-worker
     build:
@@ -95,6 +115,7 @@ services:
     depends_on:
       - api
       - worker
+      - grpc
       - node-exporter
 
   grafana:

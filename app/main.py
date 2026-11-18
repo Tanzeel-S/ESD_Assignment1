@@ -25,17 +25,22 @@ See /metrics for the raw exposition format Prometheus scrapes.
 import logging
 import time
 import uuid
+from collections import defaultdict, deque
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, Depends, HTTPException, Request, Response
+from fastapi import FastAPI, Depends, Header, HTTPException, Request, Response
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .db import get_db, init_db
 from .auth import current_user, require_same_user
+from .checkout import CheckoutRuleError, create_order_from_cart
 from .models import Product, CartItem, Order, OrderItem, OrderStatus
 from .metrics import (
     HTTP_REQUESTS_TOTAL,
@@ -50,8 +55,86 @@ from .observability_logging import configure_logging, log_event, request_id_var
 
 STATIC_DIR = Path(__file__).parent / "static"
 
-app = FastAPI(title="HomeShop API")
+class ErrorBody(BaseModel):
+    code: str
+    message: str
+    details: object | None = None
+
+
+class ErrorResponse(BaseModel):
+    error: ErrorBody
+
+
+def error_doc(description: str) -> dict:
+    return {"model": ErrorResponse, "description": description}
+
+
+app = FastAPI(
+    title="HomeShop API",
+    version="2.0.0",
+    # Every route can fail with the shared error format below.
+    responses={
+        400: error_doc("Invalid input or business-rule rejection"),
+        422: error_doc("Request validation failed"),
+        500: error_doc("Unexpected server error"),
+    },
+)
 logger = logging.getLogger("homeshop.api")
+
+IDEMPOTENCY_CACHE: dict[str, dict[str, str]] = {}
+CHECKOUT_RATE_LIMIT_PER_MINUTE = 10
+CHECKOUT_RATE_LIMIT_WINDOW_SECONDS = 60
+CHECKOUT_RATE_LIMIT_BUCKETS: dict[str, deque[float]] = defaultdict(deque)
+
+
+def error_payload(code: str, message: str, details: object | None = None) -> dict:
+    payload = {"error": {"code": code, "message": message}}
+    if details is not None:
+        payload["error"]["details"] = details
+    return payload
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    detail = exc.detail
+    if isinstance(detail, dict):
+        code = detail.get("code", "http_error")
+        message = detail.get("message", "Request failed")
+        details = detail.get("details")
+    elif isinstance(detail, str):
+        code = "http_error"
+        message = detail
+        details = None
+    else:
+        code = "http_error"
+        message = "Request failed"
+        details = str(detail)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=error_payload(code, message, details),
+        headers=getattr(exc, "headers", None),
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=422,
+        content=error_payload(
+            "validation_error",
+            "Request validation failed",
+            [{"loc": item["loc"], "msg": item["msg"], "type": item["type"]} for item in exc.errors()],
+        ),
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled API exception", exc_info=exc)
+    return JSONResponse(
+        status_code=500,
+        content=error_payload("internal_server_error", "The server encountered an unexpected error"),
+    )
 
 
 @app.on_event("startup")
@@ -59,6 +142,43 @@ def on_startup():
     configure_logging()
     init_db()
     log_event(logger, logging.INFO, "api_started")
+
+
+def checkout_rate_limit_response(request: Request) -> JSONResponse | None:
+    """Sliding-window limit: 10 checkout calls per 60 s per (user, checkout path)."""
+    if not (request.method == "POST" and request.url.path.startswith("/checkout/")):
+        return None
+    actor = request.headers.get("X-HomeShop-User") or (request.client.host if request.client else "anonymous")
+    now = time.monotonic()
+    bucket_key = f"{actor.strip().lower()}:{request.url.path}"
+    bucket = CHECKOUT_RATE_LIMIT_BUCKETS[bucket_key]
+    while bucket and now - bucket[0] > CHECKOUT_RATE_LIMIT_WINDOW_SECONDS:
+        bucket.popleft()
+    if len(bucket) >= CHECKOUT_RATE_LIMIT_PER_MINUTE:
+        retry_after = max(1, int(bucket[0] + CHECKOUT_RATE_LIMIT_WINDOW_SECONDS - now) + 1)
+        log_event(
+            logger,
+            logging.WARNING,
+            "checkout_rate_limited",
+            path="/checkout/{user_id}",
+            retry_after_seconds=retry_after,
+        )
+        return JSONResponse(
+            status_code=429,
+            content=error_payload(
+                "rate_limited",
+                "Too many checkout requests; please wait before retrying.",
+                {"retry_after_seconds": retry_after, "limit": CHECKOUT_RATE_LIMIT_PER_MINUTE,
+                 "window_seconds": CHECKOUT_RATE_LIMIT_WINDOW_SECONDS},
+            ),
+            headers={
+                "Retry-After": str(retry_after),
+                "X-RateLimit-Limit": str(CHECKOUT_RATE_LIMIT_PER_MINUTE),
+                "X-RateLimit-Remaining": "0",
+            },
+        )
+    bucket.append(now)
+    return None
 
 
 @app.middleware("http")
@@ -81,10 +201,16 @@ async def track_http_metrics(request: Request, call_next):
     token = request_id_var.set(request_id)
     start = time.perf_counter()
     try:
-        response = await call_next(request)
+        # Rate-limit after the request ID is assigned so 429s are logged,
+        # carry X-Request-ID, and are counted in the HTTP metrics.
+        limited = checkout_rate_limit_response(request)
+        response = limited or await call_next(request)
         duration = time.perf_counter() - start
         route = request.scope.get("route")
-        path_template = route.path if route else request.url.path
+        if limited is not None:
+            path_template = "/checkout/{user_id}"
+        else:
+            path_template = route.path if route else request.url.path
 
         HTTP_REQUEST_DURATION_SECONDS.labels(
             method=request.method, path=path_template
@@ -106,12 +232,16 @@ async def track_http_metrics(request: Request, call_next):
     except Exception as error:
         duration = time.perf_counter() - start
         route = request.scope.get("route")
+        path_template = route.path if route else "unmatched"
+        # Unhandled errors become 500s in the outer error handler; count them here.
+        HTTP_REQUEST_DURATION_SECONDS.labels(method=request.method, path=path_template).observe(duration)
+        HTTP_REQUESTS_TOTAL.labels(method=request.method, path=path_template, status=500).inc()
         log_event(
             logger,
             logging.ERROR,
             "http_request_unhandled_error",
             method=request.method,
-            path=route.path if route else "unmatched",
+            path=path_template,
             duration_ms=round(duration * 1000, 2),
             error_type=type(error).__name__,
         )
@@ -334,68 +464,72 @@ def remove_cart_item(
 
 # ---------- Checkout / Orders ----------
 
-@app.post("/checkout/{user_id}", response_model=OrderOut)
+CHECKOUT_FAULT = {"mode": "off", "remaining": 0}
+
+
+@app.post(
+    "/checkout/{user_id}",
+    response_model=OrderOut,
+    responses={
+        403: error_doc("Caller may not check out another user's cart"),
+        409: error_doc("A checkout with this Idempotency-Key is still in progress"),
+        429: {
+            "model": ErrorResponse,
+            "description": "Checkout rate limit exceeded (10 calls / 60 s per user)",
+            "headers": {"Retry-After": {"description": "Seconds until a call is allowed", "schema": {"type": "integer"}}},
+        },
+        503: error_doc("Injected transient failure (reliability demo only)"),
+    },
+)
 def checkout(
-    user_id: str, db: Session = Depends(get_db), actor: str = Depends(current_user)
+    user_id: str,
+    db: Session = Depends(get_db),
+    actor: str = Depends(current_user),
+    idempotency_key: str | None = Header(
+        default=None,
+        alias="Idempotency-Key",
+        description="Client-chosen key; repeating it returns the original order instead of creating another.",
+    ),
 ):
     require_same_user(actor, user_id)
-    cart_items = db.query(CartItem).filter_by(user_id=actor).with_for_update().all()
-    if not cart_items:
-        CHECKOUT_REJECTED_TOTAL.labels(reason="empty_cart").inc()
-        log_event(logger, logging.WARNING, "checkout_rejected", reason="empty_cart")
-        raise HTTPException(400, "Cart is empty")
-
-    # Lock products during stock validation and decrement so simultaneous
-    # checkouts cannot oversell the same small-batch item.
-    product_ids = sorted({ci.product_id for ci in cart_items})
-    locked_products = {
-        product.id: product
-        for product in db.query(Product).filter(Product.id.in_(product_ids)).with_for_update().all()
-    }
-    seller_ids = {locked_products[ci.product_id].seller_id for ci in cart_items}
-    if len(seller_ids) != 1:
-        raise HTTPException(400, "A checkout can contain products from one seller only")
-
-    # Verify stock and compute total before committing anything.
-    for ci in cart_items:
-        product = locked_products[ci.product_id]
-        if product.stock < ci.quantity:
-            CHECKOUT_REJECTED_TOTAL.labels(reason="out_of_stock").inc()
-            log_event(logger, logging.WARNING, "checkout_rejected", reason="out_of_stock")
-            raise HTTPException(400, f"Not enough stock for {product.name}")
-
-    order = Order(
-        user_id=actor,
-        seller_id=seller_ids.pop(),
-        status=OrderStatus.PENDING,
-        total_cents=0,
-    )
-    db.add(order)
-    db.flush()  # get order.id
-
-    total = 0
-    for ci in cart_items:
-        product = locked_products[ci.product_id]
-        line_total = product.price_cents * ci.quantity
-        total += line_total
-        db.add(
-            OrderItem(
-                order_id=order.id,
-                product_id=ci.product_id,
-                quantity=ci.quantity,
-                unit_price_cents=product.price_cents,
+    if CHECKOUT_FAULT["remaining"] > 0:
+        # Reliability demo: fail before any business logic, so no side effects.
+        CHECKOUT_FAULT["remaining"] -= 1
+        if CHECKOUT_FAULT["mode"] == "slow":
+            time.sleep(3)
+        raise HTTPException(503, {"code": "transient_failure", "message": "Injected checkout failure; retry later."})
+    idem_key = (idempotency_key or "").strip()
+    if idem_key:
+        key = f"checkout:{user_id}:{idem_key}"
+        previous = IDEMPOTENCY_CACHE.get(key)
+        if previous and previous.get("status") == "completed":
+            order = db.query(Order).get(previous["order_id"])
+            if order is not None:
+                return order
+        if previous and previous.get("status") == "in_progress":
+            raise HTTPException(
+                409,
+                {"code": "idempotency_conflict", "message": "This checkout is already in progress for this idempotency key."},
             )
-        )
-        product.stock -= ci.quantity
-        INVENTORY_STOCK.labels(product_name=product.name, seller_id=product.seller_id).set(product.stock)
-        db.delete(ci)
+        IDEMPOTENCY_CACHE[key] = {"status": "in_progress"}
 
-    order.total_cents = total
-    db.commit()
-    db.refresh(order)
-    ORDERS_PLACED_TOTAL.inc()
-    log_event(logger, logging.INFO, "order_placed", order_id=order.id, total_cents=order.total_cents)
-    return order
+    try:
+        order = create_order_from_cart(db, actor)
+        if idem_key:
+            IDEMPOTENCY_CACHE[key] = {"status": "completed", "order_id": order.id}
+        return order
+    except CheckoutRuleError as error:
+        db.rollback()
+        if idem_key:
+            IDEMPOTENCY_CACHE.pop(f"checkout:{user_id}:{idem_key}", None)
+        raise HTTPException(
+            error.status_code,
+            {"code": error.code, "message": error.message},
+        ) from error
+    except Exception:
+        if idem_key:
+            IDEMPOTENCY_CACHE.pop(f"checkout:{user_id}:{idem_key}", None)
+        raise
 
 
 @app.get("/seller/orders", response_model=list[OrderOut])
@@ -490,6 +624,19 @@ def run_cardinality_experiment(count: int = 100):
         "sample_ids": generated_ids[:5],
         "message": f"Successfully created {count} unique time series for cardinality explosion test.",
     }
+
+
+class CheckoutFaultIn(BaseModel):
+    mode: str = Field(pattern="^(error|slow|off)$")
+    count: int = Field(ge=0, le=100, default=1)
+
+
+@app.post("/debug/checkout-fault")
+def set_checkout_fault(payload: CheckoutFaultIn):
+    """Demo only: make the next `count` checkout calls fail fast (503) or slowly (3 s, then 503)."""
+    CHECKOUT_FAULT["mode"] = payload.mode
+    CHECKOUT_FAULT["remaining"] = 0 if payload.mode == "off" else payload.count
+    return dict(CHECKOUT_FAULT)
 
 
 # ---------- Frontend ----------

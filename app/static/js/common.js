@@ -8,7 +8,7 @@ function getUserId() {
 function setUserId(id) {
   const normalized = (id || "alice").trim().toLowerCase();
   if (!/^[a-z0-9][a-z0-9_-]{0,31}$/.test(normalized)) {
-    throw new Error("Use 2-32 lowercase letters, numbers, _ or -");
+    throw new Error("Use 1-32 lowercase letters, numbers, _ or -");
   }
   localStorage.setItem("homeshop_user", normalized);
 }
@@ -33,13 +33,17 @@ function showToast(msg) {
 
 async function api(path, options = {}) {
   const res = await fetch(`${API}${path}`, {
-    headers: { "Content-Type": "application/json", "X-HomeShop-User": getUserId() },
     ...options,
+    headers: {
+      "Content-Type": "application/json",
+      "X-HomeShop-User": getUserId(),
+      ...(options.headers || {}),
+    },
   });
   let data = null;
   try { data = await res.json(); } catch (e) { /* no body */ }
   if (!res.ok) {
-    const msg = (data && data.detail) || `Request failed (${res.status})`;
+    const msg = (data && data.error && data.error.message) || `Request failed (${res.status})`;
     throw new Error(msg);
   }
   return data;

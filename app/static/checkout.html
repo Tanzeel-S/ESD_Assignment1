@@ -54,12 +54,18 @@
     `;
   }
 
+  // One key per checkout page visit: a double-click or retry returns the same order.
+  const checkoutKey = crypto.randomUUID();
+
   async function placeOrder() {
     const btn = document.getElementById("placeOrderBtn");
     btn.disabled = true;
     btn.textContent = "Placing order…";
     try {
-      const order = await api(`/checkout/${getUserId()}`, { method: "POST" });
+      const order = await api(`/checkout/${getUserId()}`, {
+        method: "POST",
+        headers: { "Idempotency-Key": checkoutKey },
+      });
       location.href = `/order.html?id=${order.id}`;
     } catch (e) {
       showToast(e.message);

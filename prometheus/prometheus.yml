@@ -11,6 +11,10 @@ scrape_configs:
     static_configs:
       - targets: ["worker:8001"]
 
+  - job_name: "homeshop-grpc"
+    static_configs:
+      - targets: ["grpc:8002"]
+
   - job_name: "node-exporter"
     static_configs:
       # 'instance' relabeled below to a human-readable machine name,

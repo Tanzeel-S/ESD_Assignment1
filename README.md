@@ -2,17 +2,17 @@
 
 A minimal e-commerce backend for home-based / small businesses (e.g. someone
 selling candles, baked goods, or crafts from home). Built for the
-Observability assignment. Parts A–C are implemented; fault injection (Part E)
-comes later.
+Observability assignment (A1) and extended with HTTP API improvements, gRPC and metrics (A2). Assignment 1 report: `REPORT.md`; Assignment 2 report: `ASSIGNMENT2_REPORT.md`.
 
 ## Architecture (so far)
 
 - **api** — FastAPI service: browse products, manage cart, checkout, check order status. Exposes `/metrics`. Also serves a simple storefront UI at `/` (`app/static/index.html`).
 - **worker** — polls the database for pending orders and "processes" them
   by calling a simulated payment gateway (configurable latency/failure rate). Exposes `/metrics` on port 8001.
+- **grpc** — separate gRPC service exposing checkout on port 50051; it uses the same checkout business rules and PostgreSQL database as the HTTP API.
 - **db** — Postgres, shared by api and worker
 - **node-exporter** — exposes host CPU/memory/disk/network stats
-- **prometheus** — scrapes api, worker, and node-exporter every 5s
+- **prometheus** — scrapes api, worker, the gRPC process metrics endpoint, and node-exporter every 5s
 - **grafana** — pre-provisioned with a Prometheus datasource and a starter dashboard ("HomeShop Overview")
 - **filebeat** — reads Docker's JSON log files, decodes HomeShop's JSON events, and sends them to Elasticsearch
 - **elasticsearch** — indexes searchable API and worker logs in `homeshop-logs-*`
@@ -30,6 +30,10 @@ docker compose up --build
 
 The API will be available at http://localhost:8000. Interactive docs at
 http://localhost:8000/docs.
+
+The gRPC checkout service listens on `localhost:50051`. See
+`ASSIGNMENT2_REPORT.md` for the RPC client, protocol generation command, and
+integration test instructions.
 
 ## Try it — via the storefront UI
 
@@ -106,6 +110,28 @@ curl below.
    curl -X POST http://localhost:8000/orders/ORDER_ID/cancel
    ```
 
+## Assignment 2: HTTP API, gRPC, and metrics
+
+Full write-up and results: `ASSIGNMENT2_REPORT.md`. Start everything first with `docker compose up --build -d`, then run:
+
+```bash
+# Part A: HTTP API
+python3 scripts/test_part_a.py            # valid / invalid / repeated / rate limit / OpenAPI contract
+python3 scripts/part_a_http_caller.py     # timeout, retry + backoff, circuit breaker
+
+# Part B: gRPC checkout
+docker compose exec grpc python -m grpc_service.client alice --deadline 3   # direct gRPC call (user ID as argument)
+docker compose exec grpc python scripts/test_part_b.py                     # success + failure over HTTP and gRPC
+
+# Part C: populate the gRPC/HTTP checkout panels in Grafana
+docker compose exec grpc python scripts/run_grpc_metrics_demo.py --count 4
+```
+
+- OpenAPI spec: `openapi.json` (regenerate with `curl -s localhost:8000/openapi.json | python3 -m json.tool > openapi.json`). Swagger UI: http://localhost:8000/docs
+- Regenerate the gRPC code after editing `grpc_service/checkout.proto`:
+  `python -m pip install -r grpc-requirements.txt && python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. grpc_service/checkout.proto`
+- gRPC listens on `localhost:50051`; its Prometheus metrics are on `localhost:8002/metrics` (job `homeshop-grpc`). The checkout comparison panels are at the bottom of Grafana's **HomeShop Overview** dashboard.
+
 ## Configuration
 
 The worker's simulated payment gateway is controlled via environment
@@ -123,24 +149,13 @@ without touching code:
 These last two are unused for now — they're there for the Part E
 anomaly experiment (injecting a repeatable slowdown).
 
-## Part B: Metrics
+## Metrics (Assignment 1, Part B)
 
 Once `docker compose up --build` is running:
 
-- **Prometheus UI**: http://localhost:9090 — check Status → Targets to confirm all 3 scrape jobs (`homeshop-api`, `homeshop-worker`, `node-exporter`) show as "UP".
+- **Prometheus UI**: http://localhost:9090 — check Status → Targets to confirm all 5 scrape jobs (`homeshop-api`, `homeshop-worker`, `homeshop-grpc`, `node-exporter`, `prometheus`) show as "UP".
 - **Grafana**: http://localhost:3000 — log in with `admin` / `admin` (you'll be asked to set a new password, or you can skip). Open Dashboards → **HomeShop Overview**, which is provisioned automatically.
-- **Raw metrics**: http://localhost:8000/metrics (API) and http://localhost:8001/metrics (worker) — useful for seeing exactly what Prometheus scrapes.
-
-Generate some traffic so the dashboard has something to show:
-```bash
-for i in $(seq 1 20); do
-  curl -s -X POST http://localhost:8000/cart/alice/add \
-    -H "Content-Type: application/json" \
-    -d '{"product_id": "PRODUCT_ID", "quantity": 1}' > /dev/null
-  curl -s -X POST http://localhost:8000/checkout/alice > /dev/null
-  sleep 0.5
-done
-```
+- **Raw metrics**: http://localhost:8000/metrics (API), http://localhost:8001/metrics (worker), and http://localhost:8002/metrics (gRPC process) — useful for seeing exactly what Prometheus scrapes.
 
 ### Metrics reference
 
@@ -195,7 +210,7 @@ docker compose down -v
 The `-v` also removes the Postgres data volume, so you get a totally
 fresh database next time.
 
-## Part C: Centralized JSON logging
+## Logging (Assignment 1, Part C)
 
 Starting `docker compose up --build` also starts the log pipeline. It can take
 about a minute for Elasticsearch and Kibana to become ready.
